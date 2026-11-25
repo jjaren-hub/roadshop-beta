@@ -9,3 +9,6 @@ nav{padding-bottom:max(8px,env(safe-area-inset-bottom))}input,select{font-size:1
 #content details label{display:flex;align-items:center;gap:.6rem}
 #content img{max-height:80px;object-fit:contain}
 #content .actions a{padding:.55rem .25rem}
+
+/* Protected business pages stay hidden until the authenticated workspace is ready. */
+body[data-auth-pending] > :not(header):not(script):not(#auth-status){display:none!important}#auth-status{max-width:720px;margin:20px auto;padding:0 20px}

@@ -3,6 +3,9 @@ const {registry,goals,periods,key,forecast}=Planning;
 const content=document.getElementById('content'), feedback=document.getElementById('feedback');
 const original=BookStore.getItem(key);
 const state=original?JSON.parse(original):{version:2,step:1,complete:false,job:'',profile:{business:BookStore.name},bills:[],operating:{},goals:{},hidden:[]};
+if(state.complete && new URLSearchParams(location.search).has('home')){
+  state.step=5;history.replaceState(null,'',location.pathname);
+}
 const pages=['Business profile','Recurring bills','Operating costs','Financial goals','Dashboard'];
 const features={fixed:'Fixed expenses',breakEven:'Break-even revenue',upcoming:'Upcoming bills',target:'Revenue targets',quotes:'Quotes and work orders'};
 let writes=Promise.resolve(),timer;
@@ -60,7 +63,7 @@ function profile(form){
 }
 function logo(parent){if(/^data:image\/(png|jpeg);base64,/.test(state.profile.logo||'')){const img=el(parent,'img');img.src=state.profile.logo;img.alt='Business logo';img.width=72;}}
 function bills(form){
-  const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html';
+  if(state.complete){const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html';}
   const suggestions=registry[state.job]?.suggestions||[];
   const select=el(el(form,'label','Suggested expense'),'select');
   for(const title of ['Custom expense',...suggestions])select.add(new Option(title));
@@ -118,7 +121,7 @@ function render(){
   const actions=el(form,'div');actions.className='actions';
   if(step>1)btn(actions,'Back',()=>go(step-1));btn(actions,'Save progress',save);
   const next=el(actions,'button',step===4?'Open dashboard':'Continue');next.type='submit';next.className='primary';
-  form.onsubmit=async e=>{e.preventDefault();if(next.disabled)return;next.disabled=true;if(step===4)state.complete=true;try{await go(step+1);}catch{state.step=step;next.disabled=false;}};
-  const legacy=el(content,'a','Open ledger');legacy.href='./?ledger';
+  form.onsubmit=async e=>{e.preventDefault();if(next.disabled)return;next.disabled=true;const wasComplete=state.complete;if(step===4)state.complete=true;try{await go(step+1);}catch{state.step=step;state.complete=wasComplete;next.disabled=false;}};
+  if(state.complete){const legacy=el(content,'a','Open ledger');legacy.href='./?ledger';}
 }
 render();

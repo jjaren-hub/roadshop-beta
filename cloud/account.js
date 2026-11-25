@@ -3,10 +3,12 @@
   const say = msg => { $('notice').textContent = msg; };
   const api = window.cloudClient;
   const selection = 'roadshop-active-workspace';
-  $('device').onclick = () => sessionStorage.setItem(selection,'device');
-  if (!api) return say('Cloud accounts are awaiting setup. Your device-only ledger is available.');
+  if (!api) return say('Cloud accounts are awaiting setup. Sign-in is required; existing browser records are unchanged.');
   const redirect = new URL('account.html',location.href).href;
-  const recoveryCallback=new URLSearchParams(location.search).get('flow')==='recovery';
+  const query=new URLSearchParams(location.search);
+  const recoveryCallback=query.get('flow')==='recovery';
+  const switchMode=query.has('switch');
+  let creatingFirst=null;
   const auth = api.auth;
   const check = ({data,error}) => { if(error) throw error; return data; };
   const run = fn => async event => {
@@ -22,14 +24,41 @@
   }
   async function display(session) {
     const version=++displayVersion;
-    user = session?.user;
+    user = session?.user?.is_anonymous?null:session?.user;
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();
-    if (!user) return;
+    $('start-setup').hidden=true;$('create').hidden=true;
+    if (!user){sessionStorage.removeItem(selection);return;}
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
     const spaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business').order('name'));
     if(version!==displayVersion)return;
+    if(!recoveryCallback && !switchMode){
+      if(spaces.length){
+        let last;try{last=JSON.parse(localStorage.getItem('roadshop-last-'+user.id));}catch{}
+        const selected=spaces.find(space=>space.id===last?.id && last.user===user.id)||spaces[0];
+        openBusiness(selected.id);return;
+      }
+      $('start-setup').hidden=false;
+      $('start-setup').onclick=run(async()=>{
+        if(creatingFirst)return;
+        $('start-setup').disabled=true;
+        const owner=user.id;
+        try{
+          creatingFirst=(async()=>{
+            const existing=check(await api.from('workspaces').select('id').order('name'));
+            if(existing.length)return existing[0];
+            return check(await api.from('workspaces').insert({name:'My business'}).select('id').single());
+          })();
+          const space=await creatingFirst;
+          if(user?.id===owner)openBusiness(space.id);
+        }finally{creatingFirst=null;$('start-setup').disabled=false;}
+      });
+      say('Set up your first business to continue.');
+      return;
+    }
+    $('start-setup').hidden=true;
+    $('create').hidden=false;
     for(const space of spaces) {
       const b = document.createElement('button'); b.textContent=space.profile_name||space.name;
       b.onclick=()=>openBusiness(space.id); $('businesses').append(b);
@@ -38,11 +67,12 @@
   $('credentials').onsubmit=run(async e=>{
     const credentials={email:$('email').value.trim(),password:$('password').value};
     if(e.submitter?.value==='signup'){
-      check(await auth.signUp({...credentials,options:{emailRedirectTo:redirect}}));
-      say('Check your email for the verification link.'); 
+      const result=check(await auth.signUp({...credentials,options:{emailRedirectTo:redirect}}));
+      if(result.session)await display(result.session);
+      else say('Check your email for the verification link.'); 
     } else {
       const data=check(await auth.signInWithPassword(credentials)); await display(data.session);
-      say('Choose a business workspace.');
+      if(switchMode || recoveryCallback)say('Choose a business workspace.');
     }
     $('password').value='';
   });
@@ -69,7 +99,7 @@
       $('change').closest('details').open=true; say('Enter a new password below.');
     }
     if (event==='SIGNED_OUT') display(null);
-    if (event==='SIGNED_IN' && session.user.id!==user?.id) setTimeout(()=>display(session).catch(e=>say(e.message)),0);
+    if (event==='SIGNED_IN' && session?.user && session.user.id!==user?.id) setTimeout(()=>{if(session.user.id!==user?.id)display(session).catch(e=>say(e.message));},0);
   });
   try { await display(check(await auth.getSession()).session); }
   catch(err){say(err.message);}

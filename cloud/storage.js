@@ -57,34 +57,46 @@ const BookStore = (() => {
   }
   async function start(){
     const active='roadshop-active-workspace';
-    let selection=sessionStorage.getItem(active);
-    if(!selection && api){
-      const {data,error}=await api.auth.getSession();if(error)throw error;
-      if(data.session)selection=local.getItem('roadshop-last-'+data.session.user.id);
-    }
-    if(!selection || selection==='device'){status().textContent='Device-only ledger';return;}
-    if(!api) throw Error('Cloud configuration unavailable.');
-    const target=JSON.parse(selection);
+    const redirect=()=>{sessionStorage.removeItem(active);location.replace('account.html');return false;};
+    if(!api)return redirect();
+    const {data:sessionData,error:sessionError}=await api.auth.getSession();
+    if(sessionError || !sessionData?.session)return redirect();
     const {data:auth,error:authError}=await api.auth.getUser();
-    if(authError || !auth.user || auth.user.id!==target.user) throw Error('Sign in and select this business again.');
+    if(authError){
+      if(authError.status===401 || authError.status===403 || authError.name==='AuthSessionMissingError')return redirect();
+      throw authError;
+    }
+    if(!auth?.user || auth.user.is_anonymous)return redirect();
     owner=auth.user.id;
+    function parse(raw){try{return JSON.parse(raw);}catch{return null;}}
+    let target=parse(sessionStorage.getItem(active));
+    if(!target?.id || target.user!==owner)target=parse(local.getItem('roadshop-last-'+owner));
+    if(!target?.id || target.user!==owner)return redirect();
     api.auth.onAuthStateChange((event,session)=>{
-      if(event==='SIGNED_OUT' || (session && session.user.id!==owner)){invalid=true;location.replace('account.html');}
+      if(event==='SIGNED_OUT' || (session && session.user.id!==owner)){invalid=true;document.body.setAttribute('data-auth-pending','');sessionStorage.removeItem(active);location.replace('account.html');}
     });
     const {data,error}=await api.from('workspaces').select('id,name,revision,books').eq('id',target.id).eq('owner_id',owner).single();
-    if(error)throw error;
+    if(error){if(error.code==='PGRST116'){local.removeItem('roadshop-last-'+owner);return redirect();}throw error;}
+    if(!data){local.removeItem('roadshop-last-'+owner);return redirect();}
+    if(invalid)return false;
     checkBooks(data.books);workspace=data;sessionStorage.setItem(active,JSON.stringify(target));
     status().textContent=data.name+' · Cloud workspace';
     const importBtn=document.getElementById('migrate');
-    if(importBtn){importBtn.hidden=keys.slice(0,3).some(k=>Object.hasOwn(data.books,k));importBtn.onclick=()=>migrate().catch(e=>alert(e.message));}
+    if(importBtn){
+      const available=keys.some(k=>!Object.hasOwn(data.books,k)&&local.getItem(k)!==null);
+      importBtn.hidden=!available || keys.slice(0,3).some(k=>Object.hasOwn(data.books,k));
+      importBtn.onclick=()=>migrate().catch(e=>alert(e.message));
+    }
     window.addEventListener('focus',()=>refresh().catch(e=>status().textContent=e.message));
     setInterval(()=>refresh().catch(e=>status().textContent=e.message),15000);
+    return true;
   }
   return {start,checkBooks,get name(){return workspace?.name||''},getItem(key){
-    return workspace ? (Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null) : local.getItem(key);
+    if(!workspace || invalid)throw Error('Sign in to access a business.');
+    return Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null;
   },async setItem(key,raw){
     if(!keys.includes(key))throw Error('Unknown record category.');
-    if(workspace)await write({...workspace.books,[key]:JSON.parse(raw)});
-    else local.setItem(key,raw);
+    if(!workspace || invalid)throw Error('Sign in to access a business.');
+    await write({...workspace.books,[key]:JSON.parse(raw)});
   }};
 })();
