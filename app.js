@@ -25,7 +25,7 @@ function render(){
   if(!list.length){ledger.textContent='No entries for this month.';cats.textContent='Category totals appear as you add entries.'}
 }
 function page(settings){$('book').hidden=settings;$('settings').hidden=!settings;$('home').setAttribute('aria-current',String(!settings));$('account').setAttribute('aria-current',String(settings));window.scrollTo(0,0);showPlan()}
-function showPlan(){$('plan').textContent=phone?phone.plan():'All ledger features are unlocked during testing.';const p=phone?phone.monthlyPrice():'';$('price').textContent=p?p+' per month. Renews until canceled.':'No subscription or payment is collected in this test.';for(const k of ['buy','refresh','manage'])$(k).hidden=!phone||phone.plan()==='Development edition';if(phone&&phone.canWrite())$('buy').hidden=true}
+function showPlan(){$('plan').textContent=phone?phone.plan():'All ledger features are unlocked during testing.';const p=phone?phone.monthlyPrice():'';$('price').textContent=p?p+' per month. Renews until canceled.':'Beta billing is disabled. See Billing for subscription status and exports.';for(const k of ['buy','refresh','manage'])$(k).hidden=!phone||phone.plan()==='Development edition';if(phone&&phone.canWrite())$('buy').hidden=true}
 window.showPlan=showPlan;
 const businessProfile=JSON.parse(BookStore.getItem(Planning.key)||'null');
 const workspaceTrade=Planning.registry[businessProfile?.job]?.trade;
@@ -37,7 +37,7 @@ if(workspaceTrade){
 }
 function options(){const cat=$('category');cat.replaceChildren();for(const s of categories[$('trade').value][$('type').value])cat.add(new Option(s,s))}
 function edit(r){
-  if(r&&!r.id.startsWith('payment-')&&(r.classification||r.splits||r.audit||r.sign||r.billKey||rows.some(x=>x.reversalOf===r.id))){location.assign('finance.html');return;}
+  if(r&&!r.id.startsWith('payment-')&&(r.classification||r.splits||r.audit||r.sign||r.billKey||r.source||r.externalId||r.job||r.settlement||r.receipts?.length||rows.some(x=>x.reversalOf===r.id)||businessProfile?.mechanic?.jobs?.some(j=>j.costs?.some(c=>c.ledgerId===r.id)||j.payments?.some(c=>c.ledgerId===r.id)))){location.assign('finance.html');return;}
   if(r?.id.startsWith('payment-'))return notifyUser('Payment from work order '+r.ref+' · '+r.date);
   if(!healthy)return notifyUser('Local records could not be read. Export a backup first.');
   if(phone&&!phone.canWrite()){page(true);return}
@@ -47,7 +47,7 @@ function edit(r){
 function ask(title,detail,fn){$('question').textContent=title;$('detail').textContent=detail;pending=fn;$('confirm').showModal()}
 function receiveBackup(raw){try{const obj=JSON.parse(raw);if(obj.format!=='roadshop-v1')throw Error();const incoming=validate(obj.entries),known=new Set(rows.map(r=>r.id)),fresh=incoming.filter(r=>!known.has(r.id));if(!fresh.length)return notifyUser('No new entries in this backup.');ask('Import '+fresh.length+' entries?',(incoming.length-fresh.length)+' matching entries will keep their current version.',async()=>{if(await save([...rows,...fresh]))notifyUser('Backup imported.')})}catch{notifyUser('Invalid backup. Your current records are safe.')}}
 window.receiveBackup=receiveBackup;
-$('form').onsubmit=async e=>{e.preventDefault();const cents=parseAmount($('amount').value);if(!cents)return alert('Enter a positive amount with up to two decimal places.');const r={id:editing??crypto.randomUUID(),cents};for(const k of ['trade','type','category','date','ref','note'])r[k]=$(k).value.trim();if(await save(editing?rows.map(old=>old.id===editing?r:old):[...rows,r])){$('editor').close();$('month').value=r.date.slice(0,7);if($('scope').value!=='All trades')$('scope').value=r.trade;render()}};
+$('form').onsubmit=async e=>{e.preventDefault();const cents=parseAmount($('amount').value);if(!cents)return alert('Enter a positive amount with up to two decimal places.');const r={id:editing??crypto.randomUUID(),cents};for(const k of ['trade','type','category','date','ref','note'])r[k]=$(k).value.trim();if(!Finance.day(r.date)||r.date>localDate())return alert('Enter actual transaction date.');if(Finance.duplicate(r,ledgerRows().filter(x=>x.id!==r.id))&&!confirm('Possible duplicate. Confirm this is a separate transaction.'))return;if(await save(editing?rows.map(old=>old.id===editing?r:old):[...rows,r])){$('editor').close();$('month').value=r.date.slice(0,7);if($('scope').value!=='All trades')$('scope').value=r.trade;render()}};
 $('remove').onclick=()=>ask('Delete this entry?','This removes it from the ledger and updates the report.',async()=>{if(await save(rows.filter(r=>r.id!==editing)))$('editor').close()});
 $('cancel').onclick=()=>$('confirm').close();$('accept').onclick=()=>{$('confirm').close();pending?.();pending=null};
 $('backup').onclick=()=>{if(phone)return phone.backup();const a=document.createElement('a');a.download='roadshop-backup.json';a.href=URL.createObjectURL(new Blob([JSON.stringify({format:'roadshop-v1',entries:rows})],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};

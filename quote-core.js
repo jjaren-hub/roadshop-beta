@@ -10,9 +10,11 @@ const Q = (() => {
   function validate(q,privateFields=false) {
     const str=(v,max,empty=false)=>typeof v==='string'&&v.length<=max&&(empty||v.trim().length>0);
     const integer=(v,max,min=0)=>Number.isSafeInteger(v)&&v>=min&&v<=max;
-    const date=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v)&&new Date(v).toISOString().slice(0,10)===v;
+    const date=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v)&&!isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
     if(!q||!/^Q-[a-f0-9]{12}$/.test(q.id)||!date(q.issued)||!date(q.expires)||!str(q.shop,80)||!str(q.contact,100)||!str(q.customer,80)||!str(q.vehicle,100,true)||!str(q.description,420)||!integer(q.tax,99999900)||!Array.isArray(q.items)||!q.items.length||q.items.length>12)throw Error('Invalid estimate.');
     for(const i of q.items)if(!str(i.label,70)||!integer(i.qty,999900,1)||!integer(i.rate,99999900)||(privateFields&&!integer(i.cost,99999900)))throw Error('Check each line description, quantity and amount.');
+    if(q.expires<q.issued)throw Error('Estimate expiry precedes issue date.');
+    if(privateFields&&q.paid&&(!date(q.paid.date)||q.paid.date>today()||total(q)<=0))throw Error('Invalid paid estimate date or total.');
     return q;
   }
   const total=q=>q.items.reduce((a,i)=>a+amount(i.qty,i.rate),q.tax);

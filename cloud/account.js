@@ -24,14 +24,15 @@
   }
   async function display(session) {
     const version=++displayVersion;
-    user = session?.user?.is_anonymous?null:session?.user;
+    user=null;
+    if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();
     $('start-setup').hidden=true;$('create').hidden=true;
     if (!user){sessionStorage.removeItem(selection);return;}
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
-    const spaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business').order('name'));
+    const owner=user.id;const spaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business').eq('owner_id',owner).order('name'));
     if(version!==displayVersion)return;
     if(!recoveryCallback && !switchMode){
       if(spaces.length){
@@ -46,7 +47,7 @@
         const owner=user.id;
         try{
           creatingFirst=(async()=>{
-            const existing=check(await api.from('workspaces').select('id').order('name'));
+            const existing=check(await api.from('workspaces').select('id').eq('owner_id',owner).order('name'));
             if(existing.length)return existing[0];
             return check(await api.from('workspaces').insert({name:'My business'}).select('id').single());
           })();

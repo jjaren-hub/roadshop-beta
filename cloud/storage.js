@@ -2,7 +2,7 @@
 const BookStore = (() => {
   const keys = ['roadshop-ledger-v1','roadshop-quotes-v1','roadshop-shop-rates-v1','roadshop-profile-v2'];
   const local = window.localStorage;
-  let workspace, owner, busy=false, invalid=false;
+  let workspace, owner, busy=false, invalid=false, checking=false;
   const api=window.cloudClient;
   const status=()=>document.getElementById('workspace-status');
   function checkBooks(books){
@@ -45,15 +45,17 @@ const BookStore = (() => {
     await write({...workspace.books,...books}); location.reload();
   }
   async function refresh(){
-    if(!workspace || busy || document.hidden || invalid)return;
+    if(!workspace || busy || checking || document.hidden || invalid || !navigator.onLine)return;
+    checking=true;try{
     const before=workspace.revision;
-    const {data,error}=await api.from('workspaces').select('revision').eq('id',workspace.id).maybeSingle();
+    const {data,error}=await api.from('workspaces').select('revision').eq('id',workspace.id).eq('owner_id',owner).maybeSingle();
     if(error){status().textContent='Sync unavailable. Reconnect to save.';return;}
     if(!data){location.replace('account.html');return;}
     if(workspace.revision!==before || busy || data.revision===before)return;
     const editing=document.querySelector('#wizard, #report-view, #scan-editor, #tax-editor, #mechanic-editor, #truck-editor, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
     if(editing){status().textContent='New changes available. Reload before saving.';return;}
     location.reload();
+    }finally{checking=false;}
   }
   async function start(){
     const active='roadshop-active-workspace';
@@ -88,7 +90,7 @@ const BookStore = (() => {
       importBtn.onclick=()=>migrate().catch(e=>alert(e.message));
     }
     window.addEventListener('focus',()=>refresh().catch(e=>status().textContent=e.message));
-    setInterval(()=>refresh().catch(e=>status().textContent=e.message),15000);
+    setInterval(()=>refresh().catch(e=>status().textContent=e.message),30000);
     return true;
   }
   return {start,checkBooks,get id(){if(!workspace||invalid)throw Error('Sign in to access a business.');return workspace.id},get name(){return workspace?.name||''},getItem(key){
