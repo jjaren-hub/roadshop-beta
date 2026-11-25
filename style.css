@@ -50,3 +50,11 @@ html[data-theme=dark] .mechanic-tabs .navlink[aria-current=true]{background:#405
 @media print{.mechanic-tabs{display:none!important}}
 
 .danger-action{border:1px solid #a04d4d;color:#9c3737;background:#fff;min-height:44px;margin:5px 0 10px;padding:8px 12px}.danger-action:hover{background:#fbeceb}html[data-theme=dark] .danger-action{color:#ffb8b8;border-color:#c67575;background:#302525}
+
+#finance-editor details{margin:12px 0}
+#finance-editor summary,#report-view summary{cursor:pointer;font-weight:600;padding:10px 0}
+#finance-editor label:has(textarea),#finance-editor textarea{width:100%}
+button[aria-pressed=true]{background:#deeadb;border-color:#598279}
+html[data-theme=dark] button[aria-pressed=true]{background:#405e43;color:#f3ffe9}
+html[data-theme=dark] #tax-center .tax-warning,html[data-theme=dark] #scan-center .scan-warning{background:#423a26;color:#fff1cf}
+html[data-theme=dark] .workspace-nav a:focus-visible, a:focus-visible,summary:focus-visible{outline:3px solid #528388;outline-offset:2px}
