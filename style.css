@@ -3,3 +3,9 @@ nav{padding-bottom:max(8px,env(safe-area-inset-bottom))}input,select{font-size:1
 
 .navlink{flex:1;text-align:center;text-decoration:none;color:inherit;padding:10px 4px;font-weight:600}.navlink[aria-current=page]{background:#deeadb;border-radius:8px}.qform label{display:grid;gap:4px;margin-bottom:12px}.qform textarea{font:inherit;border:1px solid #bac6be;border-radius:8px;padding:10px;min-height:64px}.qform input,.qform textarea{width:100%}.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.qactions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.qitem{padding:12px 0;border-top:1px solid #c7d2c6}.qinfo{white-space:pre-wrap;overflow-wrap:anywhere}.qback{color:inherit}.qform select{width:100%}.qtotal{font-weight:bold;font-size:1.35em}
 @media print{#customerView>*:not(.card),header,nav{display:none!important}#customerView .card{border:0;padding:0}body{background:white}}
+
+#content fieldset{border:1px solid #c9d2c9;border-radius:10px;margin:12px 0;padding:12px;min-width:0}
+#content legend{font-weight:700}
+#content details label{display:flex;align-items:center;gap:.6rem}
+#content img{max-height:80px;object-fit:contain}
+#content .actions a{padding:.55rem .25rem}

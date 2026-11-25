@@ -1,0 +1,90 @@
+// A single revision covers ledger entries, private quotes and shop defaults together.
+const BookStore = (() => {
+  const keys = ['roadshop-ledger-v1','roadshop-quotes-v1','roadshop-shop-rates-v1','roadshop-profile-v2'];
+  const local = window.localStorage;
+  let workspace, owner, busy=false, invalid=false;
+  const api=window.cloudClient;
+  const status=()=>document.getElementById('workspace-status');
+  function checkBooks(books){
+    if (!books || typeof books!=='object' || Array.isArray(books)) throw Error('Invalid workspace data.');
+    for(const [key,value] of Object.entries(books)){
+      if(!keys.includes(key)) throw Error('Workspace needs a newer app version.');
+      if(key===keys[0]) validate(value);
+      if(key===keys[1]){
+        if(!Array.isArray(value)||new Set(value.map(q=>q.id)).size!==value.length) throw Error('Invalid quote collection.');
+        value.forEach(q=>Q.validate(q,true));
+      }
+      if(key===keys[3] && (!value || value.version!==2 || !Array.isArray(value.bills) || !value.profile || !value.goals || !value.operating || !Array.isArray(value.hidden)))throw Error('Invalid business profile.');
+      if(key===keys[2]){
+        if(!value || typeof value!=='object'||Array.isArray(value))throw Error('Invalid shop defaults.');
+        for(const k of ['markup','hourly','mileage']) if(value[k]!=null && (!Number.isFinite(value[k])||value[k]<0)) throw Error('Invalid rate.');
+      }
+    }
+  }
+  async function write(books){
+    if(invalid || busy) throw Error('Workspace changed or is saving. Refresh and retry.');
+    checkBooks(books);
+    busy=true;
+    try{
+      const {data,error}=await api.from('workspaces').update({books,revision:workspace.revision+1})
+        .eq('id',workspace.id).eq('owner_id',owner).eq('revision',workspace.revision).select('revision').maybeSingle();
+      if(error) throw error;
+      if(!data) throw Error('Workspace changed on another device. Refresh before saving.');
+      workspace={...workspace,books,revision:data.revision};
+      status().textContent=workspace.name+' · Saved';
+    } catch(e){status().textContent=e.message;throw e;}
+    finally {busy=false;}
+  }
+  async function migrate(){
+    if(keys.slice(0,3).some(k=>Object.hasOwn(workspace.books,k))) throw Error('Select an empty workspace to import this device.');
+    const books={};
+    for(const key of keys){if(Object.hasOwn(workspace.books,key))continue;const raw=local.getItem(key);if(raw!==null)books[key]=JSON.parse(raw);}
+    checkBooks(books);
+    if(!Object.keys(books).length) throw Error('There are no local records to import.');
+    if(!confirm('Copy '+(books[keys[0]]?.length||0)+' ledger entries, '+(books[keys[1]]?.length||0)+' quotes and available rates into '+workspace.name+'? The original device records will stay here.'))return;
+    await write({...workspace.books,...books}); location.reload();
+  }
+  async function refresh(){
+    if(!workspace || busy || document.hidden || invalid)return;
+    const before=workspace.revision;
+    const {data,error}=await api.from('workspaces').select('revision').eq('id',workspace.id).maybeSingle();
+    if(error){status().textContent='Sync unavailable. Reconnect to save.';return;}
+    if(!data){location.replace('account.html');return;}
+    if(workspace.revision!==before || busy || data.revision===before)return;
+    const editing=document.querySelector('#wizard, dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
+    if(editing){status().textContent='New changes available. Reload before saving.';return;}
+    location.reload();
+  }
+  async function start(){
+    const active='roadshop-active-workspace';
+    let selection=sessionStorage.getItem(active);
+    if(!selection && api){
+      const {data,error}=await api.auth.getSession();if(error)throw error;
+      if(data.session)selection=local.getItem('roadshop-last-'+data.session.user.id);
+    }
+    if(!selection || selection==='device'){status().textContent='Device-only ledger';return;}
+    if(!api) throw Error('Cloud configuration unavailable.');
+    const target=JSON.parse(selection);
+    const {data:auth,error:authError}=await api.auth.getUser();
+    if(authError || !auth.user || auth.user.id!==target.user) throw Error('Sign in and select this business again.');
+    owner=auth.user.id;
+    api.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_OUT' || (session && session.user.id!==owner)){invalid=true;location.replace('account.html');}
+    });
+    const {data,error}=await api.from('workspaces').select('id,name,revision,books').eq('id',target.id).eq('owner_id',owner).single();
+    if(error)throw error;
+    checkBooks(data.books);workspace=data;sessionStorage.setItem(active,JSON.stringify(target));
+    status().textContent=data.name+' · Cloud workspace';
+    const importBtn=document.getElementById('migrate');
+    if(importBtn){importBtn.hidden=keys.slice(0,3).some(k=>Object.hasOwn(data.books,k));importBtn.onclick=()=>migrate().catch(e=>alert(e.message));}
+    window.addEventListener('focus',()=>refresh().catch(e=>status().textContent=e.message));
+    setInterval(()=>refresh().catch(e=>status().textContent=e.message),15000);
+  }
+  return {start,checkBooks,get name(){return workspace?.name||''},getItem(key){
+    return workspace ? (Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null) : local.getItem(key);
+  },async setItem(key,raw){
+    if(!keys.includes(key))throw Error('Unknown record category.');
+    if(workspace)await write({...workspace.books,[key]:JSON.parse(raw)});
+    else local.setItem(key,raw);
+  }};
+})();

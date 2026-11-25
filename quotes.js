@@ -16,26 +16,30 @@
    const hash=Q.digest(q);button(root,'Approve & send to shop',async()=>{if(!name.value.trim()){name.focus();name.reportValidity();return}const url=link('quotes.html',{id:q.id,approvedBy:name.value.trim(),date:Q.today(),hash:await hash});await shareLink(url,'Approval for '+q.id+' from '+name.value.trim())});name.required=true;
   }catch{root.textContent='This estimate link is incomplete or invalid. Ask the shop to resend it.'}return;
  }
- const key='roadshop-quotes-v1';const read=()=>JSON.parse(localStorage.getItem(key)||'[]');
- function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;localStorage.setItem(key,JSON.stringify(all))}
+ const key='roadshop-quotes-v1';const read=()=>JSON.parse(BookStore.getItem(key)||'[]');
+ async function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;await BookStore.setItem(key,JSON.stringify(all))}
  function screen(id){for(const x of ['list','compose','view'])$(x).hidden=x!==id;$('status').textContent='';window.scrollTo(0,0)}
  function list(){screen('list');$('paidCards').replaceChildren();const cards=$('cards');cards.replaceChildren();const all=read();$('paidCount').textContent='Paid history ('+all.filter(q=>q.paid).length+')';if(!all.some(q=>!q.paid))cards.append(el('p','Create a repair estimate to share with your customer.'));for(const q of all){const c=el('div',undefined,'card');c.append(el('h2',q.customer+' · '+Q.dollars(Q.total(q))),el('p',[q.vehicle,q.id,q.paid?'Paid '+q.paid.date:q.approval?'Approved':'Estimate',q.issued].filter(Boolean).join(' · ')));button(c,'Open estimate',()=>view(q));(q.paid?$('paidCards'):cards).append(c)}}
  function input(label,key,type,value,max){const l=el('label',label);const i=el('input');i.dataset.field=key;i.type=type;i.value=value??'';i.required=true;if(type==='number'){i.min=key==='qty'?'.01':'0';i.step='.01';i.max=max}else i.maxLength=max;l.append(i);return l}
  const ratesKey='roadshop-shop-rates-v1';
- function shopRates(){return JSON.parse(localStorage.getItem(ratesKey)||'{"markup":0,"hourly":null}')}
+ function shopRates(){const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
+ if(profile?.job==='mechanic')return {...JSON.parse(BookStore.getItem(ratesKey)||'{}'),...profile.operating.mechanic};
+ return JSON.parse(BookStore.getItem(ratesKey)||'{"markup":0,"hourly":null}')}
  function assignRates(markup,hourly,rates){$(markup).value=rates.markup??'';$(hourly).value=rates.hourly??'';$(markup==='markup'?'mileageRate':'defaultMileage').value=rates.mileage??''}
- function saveRates(markup,hourly){
+ async function saveRates(markup,hourly){
    for(const id of [markup,hourly]){
      const field=$(id);
      if(field.value===''){field.focus();alert('Enter both shop rates. Use zero for a free rate.');return}
      if(!field.reportValidity())return;
    }
    const mile=$(markup==='markup'?'mileageRate':'defaultMileage');if(!mile.reportValidity())return;const rates={mileage:mile.value===''?null:Number(mile.value),markup:Number($(markup).value),hourly:Number($(hourly).value)};
-   try{localStorage.setItem(ratesKey,JSON.stringify(rates));assignRates('defaultMarkup','defaultHourly',rates);alert('Shop rates saved on this device.')}
+   try{const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
+   if(profile?.job==='mechanic'){profile.operating.mechanic={...profile.operating.mechanic,...rates};await BookStore.setItem(Planning.key,JSON.stringify(profile));}
+   else await BookStore.setItem(ratesKey,JSON.stringify(rates));assignRates('defaultMarkup','defaultHourly',rates);alert('Shop rates saved.')}
    catch{alert('Could not save rates on this device.')}
  }
  assignRates('defaultMarkup','defaultHourly',shopRates());
- $('rateForm').onsubmit=e=>{e.preventDefault();saveRates('defaultMarkup','defaultHourly')};
+ $('rateForm').onsubmit=async e=>{e.preventDefault();saveRates('defaultMarkup','defaultHourly')};
  $('remember').onclick=()=>saveRates('markup','hourly');
  const scaled=value=>Math.round(Number(value)*100);
  const field=(div,key)=>div.querySelector('[data-field="'+key+'"]');
@@ -81,18 +85,18 @@
      if(!date.reportValidity())return;
      if(Q.total(q)<=0)throw Error('A paid order must have a positive total.');
      if(!confirm('Record full payment of '+Q.dollars(Q.total(q))+' on '+date.value+' and move this order to paid history?'))return;
-     const post=()=>{
+     const post=async()=>{
        const latest=read().find(order=>order.id===q.id);if(!latest)throw Error('Work order could not be found.');
-       if(!latest.paid){latest.paid={date:date.value};save(latest)}
+       if(!latest.paid){latest.paid={date:date.value};await save(latest)}
        list();$('status').textContent='Payment recorded in the ledger for '+q.id+'.';
      };
-     if(navigator.locks)await navigator.locks.request('roadshop-payment',post);else post();
+     if(navigator.locks)await navigator.locks.request('roadshop-payment',post);else await post();
    });parent.append(panel);
  }
  $('new').onclick=()=>compose();$('cancel').onclick=list;$('additem').onclick=()=>item();$('addMileage').onclick=()=>item(undefined,'mileage');$('addLabor').onclick=()=>item(undefined,'labor');$('addFee').onclick=()=>item(undefined,'manual');$('form').oninput=calc;
- $('form').onsubmit=e=>{e.preventDefault();try{const q={id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
+ $('form').onsubmit=async e=>{e.preventDefault();try{const q={id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);await save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
  $('export').onclick=()=>download(new File([JSON.stringify({format:key,quotes:read()})],'roadshop-quotes.json',{type:'application/json'}));
- $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){localStorage.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
- async function approval(){if(!location.hash)return list();try{const r=Q.decode(location.hash.slice(1));const q=read().find(x=>x.id===r.id);if(!q)throw Error('Open this approval on the device and browser where the original quote is saved.');if(r.hash!==await Q.digest(q)||typeof r.approvedBy!=='string'||!r.approvedBy.trim()||r.approvedBy.length>80||typeof r.date!=='string'||!/^\d{4}-\d\d-\d\d$/.test(r.date)||r.date<q.issued||r.date>q.expires||r.date>Q.today())throw Error('This approval does not match the saved quote or validity dates.');view(q);if(q.approval||q.paid)return;const box=el('div',undefined,'card');box.append(el('h2','Customer approval'),el('p',r.approvedBy+' approved '+q.id+' for '+Q.dollars(Q.total(q))+'. Confirm the reply came from your customer.'));button(box,'Record approval',()=>{q.approval={approvedBy:r.approvedBy,date:r.date};save(q);history.replaceState(null,'',location.pathname);view(q)});$('view').prepend(box)}catch(e){list();$('status').textContent=e.message}}
+ $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){await BookStore.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
+ async function approval(){if(!location.hash)return list();try{const r=Q.decode(location.hash.slice(1));const q=read().find(x=>x.id===r.id);if(!q)throw Error('Open this approval on the device and browser where the original quote is saved.');if(r.hash!==await Q.digest(q)||typeof r.approvedBy!=='string'||!r.approvedBy.trim()||r.approvedBy.length>80||typeof r.date!=='string'||!/^\d{4}-\d\d-\d\d$/.test(r.date)||r.date<q.issued||r.date>q.expires||r.date>Q.today())throw Error('This approval does not match the saved quote or validity dates.');view(q);if(q.approval||q.paid)return;const box=el('div',undefined,'card');box.append(el('h2','Customer approval'),el('p',r.approvedBy+' approved '+q.id+' for '+Q.dollars(Q.total(q))+'. Confirm the reply came from your customer.'));button(box,'Record approval',async()=>{q.approval={approvedBy:r.approvedBy,date:r.date};await save(q);history.replaceState(null,'',location.pathname);view(q)});$('view').prepend(box)}catch(e){list();$('status').textContent=e.message}}
  window.addEventListener('hashchange',approval);approval();
 })();
