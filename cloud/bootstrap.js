@@ -1,6 +1,8 @@
 BookStore.start().then(async ready=>{
   if(!ready)return;
   const entry=document.getElementById('entry-script').dataset.src;
+  if(typeof RoadCommercial!=='undefined'){try{const s=await RoadCommercial.load();if(!RoadCommercial.access(s)){const a=document.createElement('a');a.href='billing.html';a.textContent=' Subscription inactive · manage billing or export';document.getElementById('workspace-status')?.append(a);}RoadCommercial.activity(({'workspace.js':'dashboard','finance.js':'finance','app.js':'finance','trucking.js':'trucking','mechanic.js':'mechanic','scanner.js':'scanner','tax-planning.js':'tax','reports.js':'reports','quotes.js':'mechanic'})[entry]);}catch{}}
+
   const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
   const module=Planning.registry[profile?.job];
   const quotesAllowed=!module || (profile.job==='mechanic' && !profile.hidden.includes('quotes'));
@@ -26,7 +28,7 @@ BookStore.start().then(async ready=>{
   script.onerror=()=>showAuthError(Error('Could not load the workspace. Reload and try again.'));
   document.body.append(script);
 }).catch(showAuthError);
-function showAuthError(error){
+function showAuthError(error){if(typeof RoadCommercial!=='undefined')RoadCommercial.activity('error');
   const notice=document.getElementById('auth-status');
   if(!notice){document.querySelector('main').hidden=true;return;}
   notice.textContent='Could not open workspace. '+error.message+' ';

@@ -49,7 +49,7 @@ async function go(step){
   state.step=step;await save();render();window.scrollTo(0,0);
 }
 function profile(form){
-  const pick=field(form,{},'occupation','Occupation',{choices:Object.values(registry).map(m=>m.label),required:true});
+  const allowed=window.RoadCommercial?.status?.occupations;const pick=field(form,{},'occupation','Occupation',{choices:Object.entries(registry).filter(([k])=>!allowed||allowed.includes(k)||k===state.job).map(([,m])=>m.label),required:true});
   pick.value=registry[state.job]?.label||'';
   pick.onchange=()=>{state.job=Object.keys(registry).find(k=>registry[k].label===pick.value)||'';state.profile.subtype='';changed();render();};
   const mod=registry[state.job];if(mod?.types.length)field(form,state.profile,'subtype','Type of business',{choices:mod.types});
@@ -91,11 +91,11 @@ function dashboard(){
   const raw=validate(JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]')),legacy=WorkPayments.rows(JSON.parse(BookStore.getItem('roadshop-quotes-v1')||'[]')),rows=[...new Map([...raw,...legacy].map(r=>[r.id,r])).values()];
   const money=n=>cash(n/100),report=Retention.report(state,rows,today,pref.period),notices=Retention.reminders(state,rows,today);
   const q=forecast(state,today),assumptions=state.operating[state.job]||{};
-  logo(content);el(content,'h1',p.business);el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
+  const commercial=window.RoadCommercial?.status;logo(content);el(content,'h1',p.business);if(commercial?.announcement)el(content,'p',commercial.announcement);if(commercial&&!RoadCommercial.access(commercial))el(content,'p','Subscription inactive. Your records are available for viewing and export; new writes require an eligible plan.');el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
   const nav=el(content,'div');nav.className='actions workspace-nav dashboard-nav';
-  const links=[['finance','Finances','finance.html'],...(state.job==='truck'?[['truck','Trucking tools','trucking.html']]:[]),...(state.job==='mechanic'?[['mechanic','Mechanic tools','mechanic.html'],['quotes','Legacy quotes','quotes.html']]:[]),['reports','Reports & reminders','reports.html'],['scanner','Scan & insights','scanner.html'],['tax','Taxes & planning','tax-planning.html'],['offline','Offline entry','offline.html'],['classic','Classic ledger','./?ledger']];
+  const links=[['finance','Finances','finance.html'],...(state.job==='truck'?[['truck','Trucking tools','trucking.html']]:[]),...(state.job==='mechanic'?[['mechanic','Mechanic tools','mechanic.html'],['quotes','Legacy quotes','quotes.html']]:[]),['reports','Reports & reminders','reports.html'],['scanner','Scan & insights','scanner.html'],['tax','Taxes & planning','tax-planning.html'],['offline','Offline entry','offline.html'],['classic','Classic ledger','./?ledger'],['billing','Billing','billing.html'],['support','Help & support','support.html'],...(commercial?.isAdmin?[['admin','Administration','admin.html']]:[])].filter(([k])=>!['scanner','reports','offline'].includes(k)||commercial?.flags?.[k]!==false);
   const link=(parent,s,url)=>{const a=el(parent,'a',s);a.href=url;};
-  for(const [k,label,url] of links)if(!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes')))link(nav,label,url);
+  for(const [k,label,url] of links)if(!['billing','support','admin'].includes(k)&&!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes')))link(nav,label,url);
   btn(nav,'Business settings',()=>go(1));
   const allTools=el(content,'details');el(allTools,'summary','All tools & shortcuts');const more=el(allTools,'div');more.className='workspace-nav dashboard-nav';for(const [k,label,url] of links)if(!(k==='quotes'&&state.hidden.includes('quotes')))link(more,label,url);
   const name={actual:'Actual performance',health:'Business health',reminders:'Reminders',...features};
@@ -114,7 +114,7 @@ function dashboard(){
   const persist=async(next)=>{state.retention={...pref,...next};await save();render();[...content.querySelectorAll('details')].at(-1).open=true;};
   const period=el(el(prefs,'label','Reporting period'),'select');for(const [k,l] of [['week','Week to date'],['month','Month to date']])period.add(new Option(l,k));period.value=pref.period;period.onchange=()=>persist({period:period.value}).catch(e=>feedback.textContent=e.message);
   el(prefs,'h3','Widgets');for(const [i,k] of pref.order.entries()){const line=el(prefs,'div');line.className='retention-preference';const label=el(line,'label'),check=el(label,'input');check.type='checkbox';check.checked=!pref.hidden.includes(k);label.append(' '+name[k]);check.onchange=()=>persist({hidden:check.checked?pref.hidden.filter(x=>x!==k):[...pref.hidden,k]}).catch(e=>feedback.textContent=e.message);for(const [delta,labelText] of [[-1,'↑'],[1,'↓']]){const b=btn(line,labelText,()=>{const order=pref.order.slice();[order[i],order[i+delta]]=[order[i+delta],order[i]];return persist({order})});b.disabled=i+delta<0||i+delta>=pref.order.length;b.setAttribute('aria-label','Move '+name[k]+(delta<0?' up':' down'));}}
-  el(prefs,'h3','Quick actions');for(const [k,l] of links){const label=el(prefs,'label'),check=el(label,'input');check.type='checkbox';check.checked=!pref.quickHidden.includes(k);label.append(' '+l);check.onchange=()=>persist({quickHidden:check.checked?pref.quickHidden.filter(x=>x!==k):[...pref.quickHidden,k]}).catch(e=>feedback.textContent=e.message);}
+  el(prefs,'h3','Quick actions');for(const [k,l] of links.filter(([k])=>!['billing','support','admin'].includes(k))){const label=el(prefs,'label'),check=el(label,'input');check.type='checkbox';check.checked=!pref.quickHidden.includes(k);label.append(' '+l);check.onchange=()=>persist({quickHidden:check.checked?pref.quickHidden.filter(x=>x!==k):[...pref.quickHidden,k]}).catch(e=>feedback.textContent=e.message);}
   el(prefs,'small','Hidden shortcuts remain in All tools. Business settings always stays available.');
   const theme=el(el(prefs,'label','Theme'),'select');for(const k of ['system','light','dark'])theme.add(new Option(k,k));theme.value=localStorage.getItem('roadshop-theme')||pref.theme;theme.onchange=()=>{window.RoadTheme.set(theme.value);persist({theme:theme.value}).catch(e=>feedback.textContent=e.message);};
   btn(prefs,'Reset dashboard layout',()=>persist({order:Retention.widgets.slice(),hidden:[],quickHidden:[],period:'week'}));
