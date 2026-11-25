@@ -87,32 +87,37 @@ function operating(form){
   fields(form,data,module.fields);
 }
 function dashboard(){
-  const mod=registry[state.job],p=state.profile,q=forecast(state,localDay());
+  const mod=registry[state.job],p=state.profile,pref=Retention.prefs(state),today=localDay();
+  const raw=validate(JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]')),legacy=WorkPayments.rows(JSON.parse(BookStore.getItem('roadshop-quotes-v1')||'[]')),rows=[...new Map([...raw,...legacy].map(r=>[r.id,r])).values()];
+  const money=n=>cash(n/100),report=Retention.report(state,rows,today,pref.period),notices=Retention.reminders(state,rows,today);
+  const q=forecast(state,today),assumptions=state.operating[state.job]||{};
   logo(content);el(content,'h1',p.business);el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
   const nav=el(content,'div');nav.className='actions workspace-nav dashboard-nav';
-  const link=(s,url)=>{const a=el(nav,'a',s);a.href=url;};
-  if(state.job==='truck')link('Trucking tools','trucking.html');
-  link('Finances','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes')){link('Mechanic tools','mechanic.html');link('Legacy quotes','quotes.html');}
-  link('Taxes & planning','tax-planning.html');
+  const links=[['finance','Finances','finance.html'],...(state.job==='truck'?[['truck','Trucking tools','trucking.html']]:[]),...(state.job==='mechanic'?[['mechanic','Mechanic tools','mechanic.html'],['quotes','Legacy quotes','quotes.html']]:[]),['reports','Reports & reminders','reports.html'],['scanner','Scan & insights','scanner.html'],['tax','Taxes & planning','tax-planning.html'],['offline','Offline entry','offline.html'],['classic','Classic ledger','./?ledger']];
+  const link=(parent,s,url)=>{const a=el(parent,'a',s);a.href=url;};
+  for(const [k,label,url] of links)if(!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes')))link(nav,label,url);
   btn(nav,'Business settings',()=>go(1));
-  function card(id){if(state.hidden.includes(id))return;const n=el(content,'section');n.className='card';el(n,'h2',features[id]);return n;}
-  const fixed=card('fixed');if(fixed)totals(fixed);
-  const be=card('breakEven');if(be)el(be,'p',cash(q.breakEven)+' per week to cover configured operating costs.');
-  const assumptions=state.operating[state.job]||{};
-  if(be && state.job==='mechanic' && +assumptions.hourly>0)
-    el(be,'small',(q.breakEven/assumptions.hourly).toFixed(1)+' billed labor hours per week at your hourly rate.');
-  const target=card('target');if(target){
-    el(target,'p',cash(q.target)+' per week · '+cash(q.target*52/12)+' per month');
-    if(state.job==='truck' && +assumptions.days>0)el(target,'p',cash(q.target/assumptions.days)+' per working day.');
-    if(q.projected!==null)el(target,'p',cash(q.projected)+' weekly '+(state.job==='truck'?'loaded-mile revenue':'labor revenue')+' at your configured rates.');
-    el(target,'small','Estimates use entered costs and goals. Blank inputs count as zero. Reserves and owner pay use after-tax profit; the larger profit requirement sets the target.');
-  }
-  const upcoming=card('upcoming');if(upcoming){if(!q.upcoming.length)el(upcoming,'p','No upcoming bills.');for(const b of q.upcoming)el(upcoming,'p',b.date+' · '+b.name+' · '+cash(+b.amount));}
+  const allTools=el(content,'details');el(allTools,'summary','All tools & shortcuts');const more=el(allTools,'div');more.className='workspace-nav dashboard-nav';for(const [k,label,url] of links)if(!(k==='quotes'&&state.hidden.includes('quotes')))link(more,label,url);
+  const name={actual:'Actual performance',health:'Business health',reminders:'Reminders',...features};
+  const metric=(parent,k,v)=>{const a=el(parent,'p');el(a,'small',k);el(a,'strong',v)};
+  function widget(k){const n=el(content,'section');n.className='card retention-widget';el(n,'h2',name[k]);switch(k){
+  case 'actual':{el(n,'small',report.current.from+' – '+report.current.to+' · recorded transactions');const grid=el(n,'div');grid.className='retention-metrics';for(const [label,v] of [['Revenue',report.a.income],['Expenses',report.a.expense],['Profit',report.a.net],['Cash movement',report.a.cash]])metric(grid,label,money(v));if(report.goal?.target)el(n,'p','Profit goal: '+money(report.goal.actual)+' of '+money(report.goal.target));link(n,'Full business report','reports.html');break;}
+  case 'health':{for(const x of Retention.health(state,rows,today)){const line=el(n,'p');el(line,'strong',x.name+' · ');const status=el(line,'span',x.status==='unknown'?'Not enough data':x.status==='good'?'Good':x.status==='watch'?'Watch':'Needs attention');status.className='health-'+x.status;}link(n,'How indicators are calculated','reports.html?tab=health');break;}
+  case 'reminders':{el(n,'p',notices.length?notices.length+' reminder(s) need review':'No active reminders.');for(const x of notices.slice(0,3))link(el(n,'p'),x.date+' · '+x.label,x.route);link(n,'Manage reminders','reports.html?tab=reminders');break;}
+  case 'fixed':totals(n);break;
+  case 'breakEven':el(n,'p',cash(q.breakEven)+' per week to cover configured operating costs.');if(state.job==='mechanic'&&+assumptions.hourly>0)el(n,'small',(q.breakEven/assumptions.hourly).toFixed(1)+' billed labor hours per week at configured rate.');break;
+  case 'target':el(n,'p',cash(q.target)+' per week · '+cash(q.target*52/12)+' per month');el(n,'small','Planning estimate from configured costs and goals.');break;
+  case 'upcoming':if(!q.upcoming.length)el(n,'p','No upcoming bills.');for(const b of q.upcoming.slice(0,5))el(n,'p',b.date+' · '+b.name+' · '+cash(+b.amount));link(n,'Recurring bills','finance.html');break;
+  }}
+  for(const k of pref.order)if(!pref.hidden.includes(k))widget(k);
   const prefs=el(content,'details');el(prefs,'summary','Customize dashboard and navigation');
-  for(const [id,name] of Object.entries(features)){if(id==='quotes'&&state.job!=='mechanic')continue;
-    const label=el(prefs,'label'),check=el(label,'input');check.type='checkbox';check.checked=!state.hidden.includes(id);label.append(' Show '+name);
-    check.onchange=async()=>{state.hidden=state.hidden.filter(x=>x!==id);if(!check.checked)state.hidden.push(id);try{await save();render();content.querySelector('details').open=true;}catch{}};
-  }
+  const persist=async(next)=>{state.retention={...pref,...next};await save();render();[...content.querySelectorAll('details')].at(-1).open=true;};
+  const period=el(el(prefs,'label','Reporting period'),'select');for(const [k,l] of [['week','Week to date'],['month','Month to date']])period.add(new Option(l,k));period.value=pref.period;period.onchange=()=>persist({period:period.value}).catch(e=>feedback.textContent=e.message);
+  el(prefs,'h3','Widgets');for(const [i,k] of pref.order.entries()){const line=el(prefs,'div');line.className='retention-preference';const label=el(line,'label'),check=el(label,'input');check.type='checkbox';check.checked=!pref.hidden.includes(k);label.append(' '+name[k]);check.onchange=()=>persist({hidden:check.checked?pref.hidden.filter(x=>x!==k):[...pref.hidden,k]}).catch(e=>feedback.textContent=e.message);for(const [delta,labelText] of [[-1,'↑'],[1,'↓']]){const b=btn(line,labelText,()=>{const order=pref.order.slice();[order[i],order[i+delta]]=[order[i+delta],order[i]];return persist({order})});b.disabled=i+delta<0||i+delta>=pref.order.length;b.setAttribute('aria-label','Move '+name[k]+(delta<0?' up':' down'));}}
+  el(prefs,'h3','Quick actions');for(const [k,l] of links){const label=el(prefs,'label'),check=el(label,'input');check.type='checkbox';check.checked=!pref.quickHidden.includes(k);label.append(' '+l);check.onchange=()=>persist({quickHidden:check.checked?pref.quickHidden.filter(x=>x!==k):[...pref.quickHidden,k]}).catch(e=>feedback.textContent=e.message);}
+  el(prefs,'small','Hidden shortcuts remain in All tools. Business settings always stays available.');
+  const theme=el(el(prefs,'label','Theme'),'select');for(const k of ['system','light','dark'])theme.add(new Option(k,k));theme.value=localStorage.getItem('roadshop-theme')||pref.theme;theme.onchange=()=>{window.RoadTheme.set(theme.value);persist({theme:theme.value}).catch(e=>feedback.textContent=e.message);};
+  btn(prefs,'Reset dashboard layout',()=>persist({order:Retention.widgets.slice(),hidden:[],quickHidden:[],period:'week'}));
 }
 function render(){
   content.replaceChildren();const step=state.step;
