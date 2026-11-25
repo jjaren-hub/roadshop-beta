@@ -3,9 +3,10 @@ const {registry,goals,periods,key,forecast}=Planning;
 const content=document.getElementById('content'), feedback=document.getElementById('feedback');
 const original=BookStore.getItem(key);
 const state=original?JSON.parse(original):{version:2,step:1,complete:false,job:'',profile:{business:BookStore.name},bills:[],operating:{},goals:{},hidden:[]};
-if(state.complete && new URLSearchParams(location.search).has('home')){
-  state.step=5;history.replaceState(null,'',location.pathname);
-}
+// A completed workspace opens its dashboard on every normal page entry.
+// Editing business settings is an in-page action, not a persisted navigation route.
+if(state.complete && registry[state.job]) state.step=5;
+if(new URLSearchParams(location.search).has('home')) history.replaceState(null,'',location.pathname);
 const pages=['Business profile','Recurring bills','Operating costs','Financial goals','Dashboard'];
 const features={fixed:'Fixed expenses',breakEven:'Break-even revenue',upcoming:'Upcoming bills',target:'Revenue targets',quotes:'Quotes and work orders'};
 let writes=Promise.resolve(),timer;
@@ -127,6 +128,7 @@ function render(){
   if(step===1)profile(form);if(step===2)bills(form);if(step===3)operating(form);if(step===4)fields(form,state.goals,goals);
   const actions=el(form,'div');actions.className='actions';
   if(step>1)btn(actions,'Back',()=>go(step-1));btn(actions,'Save progress',save);
+  if(state.complete)btn(actions,'Return to dashboard',()=>{if(form.reportValidity() && registry[state.job])return go(5);});
   const next=el(actions,'button',step===4?'Open dashboard':'Continue');next.type='submit';next.className='primary';
   form.onsubmit=async e=>{e.preventDefault();if(next.disabled)return;next.disabled=true;const wasComplete=state.complete;if(step===4)state.complete=true;try{await go(step+1);}catch{state.step=step;state.complete=wasComplete;next.disabled=false;}};
   if(state.complete){const legacy=el(content,'a','Open ledger');legacy.href='./?ledger';}
