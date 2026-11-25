@@ -30,6 +30,6 @@ function showAuthError(error){
   const notice=document.getElementById('auth-status');
   if(!notice){document.querySelector('main').hidden=true;return;}
   notice.textContent='Could not open workspace. '+error.message+' ';
-  const a=document.createElement('a');a.href='account.html';a.textContent='Return to sign in';notice.append(a);
+  const a=document.createElement('a');a.href='account.html';a.textContent='Return to sign in';notice.append(a);const b=document.createElement('a');b.href='offline.html';b.textContent='Open encrypted offline entry';notice.append(document.createElement('br'),b);
 }
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});

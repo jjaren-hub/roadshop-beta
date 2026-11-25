@@ -51,7 +51,7 @@ const BookStore = (() => {
     if(error){status().textContent='Sync unavailable. Reconnect to save.';return;}
     if(!data){location.replace('account.html');return;}
     if(workspace.revision!==before || busy || data.revision===before)return;
-    const editing=document.querySelector('#wizard, #tax-editor, #mechanic-editor, #truck-editor, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
+    const editing=document.querySelector('#wizard, #report-view, #scan-editor, #tax-editor, #mechanic-editor, #truck-editor, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
     if(editing){status().textContent='New changes available. Reload before saving.';return;}
     location.reload();
   }
@@ -91,7 +91,7 @@ const BookStore = (() => {
     setInterval(()=>refresh().catch(e=>status().textContent=e.message),15000);
     return true;
   }
-  return {start,checkBooks,get name(){return workspace?.name||''},getItem(key){
+  return {start,checkBooks,get id(){if(!workspace||invalid)throw Error('Sign in to access a business.');return workspace.id},get name(){return workspace?.name||''},getItem(key){
     if(!workspace || invalid)throw Error('Sign in to access a business.');
     return Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null;
   },async setItem(key,raw){
