@@ -68,5 +68,24 @@ function escrow(rows,truck){const result={maintenance:0,tire:0};for(const r of r
 function repairRows(m,ledger,id){const cents=money(m.amount);if(!F.safe(cents))throw Error('Enter a positive repair amount.');if(ledger.some(r=>r.source==='trucking-repair'&&r.externalId?.startsWith(m.id+'-')))throw Error('Repair already posted.');if(ledger.some(r=>r.trade==='Trucking'&&r.date===m.date&&(!r.vehicle||r.vehicle===m.truck)&&r.sign!==-1&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&F.lines(r).some(x=>x.cents===cents&&x.classification==='expense'&&/repair|maintenance|oil change|tire|inspection/i.test(x.category))))throw Error('Possible existing repair expense. Use history only and reconcile any escrow release separately.');const common={date:m.date,truck:m.truck,ref:m.id,source:'trucking-repair',note:m.note||m.kind};const out=[row({...common,id:id(),category:'Repairs & maintenance',classification:'expense',cents,externalId:m.id+'-expense'})];if(m.funding==='maintenance'||m.funding==='tire'){if(escrow(ledger,m.truck)[m.funding]<cents)throw Error('Insufficient recorded escrow balance. Record or reconcile contributions first.');out.push(row({...common,id:id(),category:(m.funding==='maintenance'?'Maintenance':'Tire')+' escrow release',classification:'escrow_in',cents,externalId:m.id+'-release'}));}return out;}
 function travel(v){requireDate(v.depart);requireDate(v.return);if(v.return<v.depart)throw Error('Return must follow departure.');const days=(Date.parse(v.return)-Date.parse(v.depart))/86400000+1,partial=num(v.partial),home=num(v.home),rate=money(v.rate),deduct=num(v.deduct);if(partial>1||home>days||deduct>100||!Number.isInteger(home))throw Error('Invalid home days or percentage.');const eligible=Math.max(0,days-home-(days===1?1-partial:2*(1-partial)));return {days,eligible,estimated:round(eligible*rate*deduct/100)};}
 function dashboard(data,rows,truck,from,to){const select=r=>(!truck||r.truck===truck)&&r.date>=from&&r.date<=to;const mile=data.mileage.filter(select);const l=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to);const t=F.total(l),loaded=mile.reduce((s,x)=>s+x.loaded,0),deadhead=mile.reduce((s,x)=>s+x.deadhead,0),gallons=mile.reduce((s,x)=>s+x.gallons,0),miles=loaded+deadhead;let fuel=0;for(const r of l)for(const x of F.lines(r))if(x.category==='Diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,loaded,deadhead,miles,gallons,mpg:gallons?miles/gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
-return {defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,num,money,requireDate};
+// Trucks are associated by name in older records; also protect references by ID.
+function truckDependencies(data,rows,profile,id){
+ const t=data.trucks.find(x=>x.id===id);if(!t)throw Error('Truck not found. Refresh and try again.');
+ const matches=v=>typeof v==='string'&&v.trim()!==''&&(v.trim().toLowerCase()===t.name.trim().toLowerCase()||v===t.id);
+ const links=[];
+ for(const [k,label] of [['mileage','Mileage records'],['settlements','Settlements'],['leases','Lease / financing contracts'],['loads','Saved loads'],['maintenance','Maintenance records'],['perdiem','Per diem records'],['ifta','IFTA records']]){
+  const count=data[k].filter(x=>matches(x.truck)).length;if(count)links.push({label,count});
+ }
+ const ledger=rows.filter(r=>matches(r.vehicle)||matches(r.equipment)).length;if(ledger)links.push({label:'Ledger transactions (including escrow)',count:ledger});
+ const tax=profile?.taxPlanning||{};
+ const miles=(tax.mileage||[]).filter(x=>matches(x.vehicle)).length;if(miles)links.push({label:'Tax mileage records',count:miles});
+ const assets=(tax.assets||[]).filter(x=>matches(x.name)||matches(x.ledgerRef)).length;if(assets)links.push({label:'Tax asset records',count:assets});
+ return links;
+}
+function deleteTruck(data,rows,profile,id){
+ const links=truckDependencies(data,rows,profile,id);
+ if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
+ return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
+}
+return {defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,num,money,requireDate,truckDependencies,deleteTruck};
 })();
