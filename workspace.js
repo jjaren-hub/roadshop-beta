@@ -89,7 +89,7 @@ function operating(form){
 function dashboard(){
   const mod=registry[state.job],p=state.profile,q=forecast(state,localDay());
   logo(content);el(content,'h1',p.business);el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
-  const nav=el(content,'div');nav.className='actions';
+  const nav=el(content,'div');nav.className='actions workspace-nav';
   const link=(s,url)=>{const a=el(nav,'a',s);a.href=url;};
   if(state.job==='truck')link('Trucking dashboard, settlements & calculators','trucking.html');
   link('Financial dashboard & ledger','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes')){link('Mechanic dashboard, customers & jobs','mechanic.html');link('Legacy quotes & paid history','quotes.html');}

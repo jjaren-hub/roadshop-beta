@@ -12,3 +12,14 @@ nav{padding-bottom:max(8px,env(safe-area-inset-bottom))}input,select{font-size:1
 
 /* Protected business pages stay hidden until the authenticated workspace is ready. */
 body[data-auth-pending] > :not(header):not(script):not(#auth-status){display:none!important}#auth-status{max-width:720px;margin:20px auto;padding:0 20px}
+
+/* Consistent touch-friendly workspace navigation. Preserve anchor semantics. */
+.workspace-heading #workspace-status{display:block;margin-bottom:8px}
+.workspace-nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px;margin:12px 0}
+.workspace-nav a,#content .workspace-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;max-width:100%;padding:9px 10px;border:1px solid #bac6be;border-radius:8px;background:white;color:#132f32;font:inherit;font-weight:600;text-decoration:none;text-align:center;white-space:normal;overflow-wrap:anywhere}
+.workspace-nav button{margin:0}
+.workspace-nav a:focus-visible{outline:3px solid #528388;outline-offset:2px}
+.workspace-nav a:hover{background:#edf1eb}
+#signout,#logout{background:#a05252;border-color:#8d4848;color:#fff}
+#signout:hover,#logout:hover{background:#8d4848}
+.workspace-nav [hidden]{display:none!important}
