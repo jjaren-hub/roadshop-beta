@@ -13,7 +13,11 @@
   const check = ({data,error}) => { if(error) throw error; return data; };
   const run = fn => async event => {
     event.preventDefault();
+    const control = event.submitter || event.currentTarget;
+    if (control.disabled) return;
+    control.disabled = true;
     try { await fn(event); } catch (err) { say(err.message); }
+    finally { control.disabled = false; }
   };
   let user, displayVersion=0;
   function openBusiness(id) {
@@ -25,11 +29,14 @@
   async function display(session) {
     const version=++displayVersion;
     user=null;
+    $('account-title').textContent='Sign in to Road & Shop';
     if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();
     $('start-setup').hidden=true;$('create').hidden=true;
-    if (!user){sessionStorage.removeItem(selection);return;}
+    if (!user){sessionStorage.removeItem(selection);if($('notice').textContent==='Checking your sign-in…')say('');return;}
+    $('account-title').textContent=recoveryCallback?'Reset your password':'Your account';
+    if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
     const owner=user.id;const spaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business').eq('owner_id',owner).order('name'));
