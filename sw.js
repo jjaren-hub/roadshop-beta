@@ -1,5 +1,5 @@
-const CACHE = 'roadshop-iphone-pricing-4';
-const files = ['./','./app.js','./style.css','./quotes.html','./customer.html','./quotes.js','./quotes.js?v=pricing4','./quote-update.js','./quote-core.js','./pdf-lib.min.js','./install.js','./app.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
+const CACHE = 'roadshop-iphone-paid-5';
+const files = ['./','./app.js','./app.js?v=paid5','./payments.js','./style.css','./quotes.html','./customer.html','./quotes.js','./quotes.js?v=paid5','./quote-update.js','./quote-core.js','./pdf-lib.min.js','./install.js','./app.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(files.map(path => new Request(path, {cache:"reload"})))).then(() => self.skipWaiting()));
 });
