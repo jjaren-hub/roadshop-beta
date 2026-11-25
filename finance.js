@@ -22,14 +22,50 @@ const type=k=>F.classes[k][0]===1?'Income':F.classes[k][0]===-1?'Expense':'Trans
 function record(p,r){const b=section(p,r.category+' · '+money(r.cents*(r.sign||1)));el(b,'p',[r.date,labels[F.kind(r)],r.party,r.method,r.ref,r.billKey].filter(Boolean).join(' · '));if(r.note)el(b,'p',r.note);if(r.splits)for(const s of r.splits)el(b,'p',s.category+' · '+labels[s.classification]+' · '+money(s.cents));for(const a of r.receipts||[])button(b,'Download '+a.name,()=>downloadData(a));if(r.id.startsWith('payment-')){el(b,'small','Generated from a paid work order. Manage in legacy Quotes.');return;}if(r.source==='mechanic-v1'||profile?.mechanic?.jobs?.some(j=>j.costs?.some(c=>c.ledgerId===r.id)||j.payments?.some(c=>c.ledgerId===r.id))){el(b,'small','Linked to mechanic job. Manage payments, refunds and costs from the job to preserve reconciliation.');return;}const reversed=rows.some(x=>x.reversalOf===r.id);if(!reversed&&r.sign!==-1){button(b,'Edit',()=>editor(r));if(!F.linkedForDeletion(r,profile,rows)){const del=button(b,'Remove mistaken entry',async()=>{if(!confirm('Correct this entry on its original date? The original and offset remain in the audit history. No money will be refunded.'))return;await save([...rows,F.correctMistake(r,profile,rows,id())]);render()});del.className='danger-action';}button(b,'Reverse',async()=>{const d=prompt('Reversal date (YYYY-MM-DD)',today());if(!d)return;if(!F.day(d)||d<r.date||d>today())throw Error('Reversal date must be between original date and today.');if(!confirm('Record a reversing entry? Original will remain in history.'))return;await save([...rows,F.reverse(r,d,id())]);render()});}else el(b,'small',r.sign===-1?'Reversal of '+r.reversalOf:'Reversed');if(r.audit?.length){const details=el(b,'details');el(details,'summary','Audit history');for(const a of r.audit)el(details,'p',a.at+' · '+a.action+' · '+a.detail);}}
 function downloadData(a){const link=document.createElement('a');link.href=a.data;link.download=a.name;link.click()}
 function fileData(f){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=reject;reader.onload=()=>resolve({name:f.name.slice(0,180),data:reader.result});reader.readAsDataURL(f)})}
+function splitEditor(parent,amount,classification,category,existing){
+  const group=el(parent,'details');
+  group.open=existing.length>0;
+  el(group,'summary','Split transaction across categories');
+  const list=el(group,'div'), controls=[];
+  const status=el(group,'p');status.setAttribute('role','status');
+  function update(){
+    if(!controls.length){status.textContent='Use a split when one payment covers multiple categories.';return;}
+    try{
+      const allocated=controls.reduce((sum,row)=>sum+F.cents(row.amount.value||'0'),0);
+      const difference=F.cents(amount.value||'0')-allocated;
+      status.textContent=difference<0?money(-difference)+' over the transaction amount':money(difference)+' left to allocate';
+    }catch{status.textContent='Enter dollars with up to two decimal places.';}
+  }
+  function add(value={}){
+    const line=el(list,'fieldset');el(line,'legend','Split line');
+    const row={category:input(line,'Split category',value.category||''),classification:input(line,'Split classification',value.classification||classification.value,'text',classes),amount:input(line,'Split amount ($)',value.cents?dollars(value.cents):'')};
+    row.amount.inputMode='decimal';row.amount.oninput=update;controls.push(row);
+    button(line,'Remove line',()=>{controls.splice(controls.indexOf(row),1);line.remove();update()});update();
+  }
+  for(const item of existing)add(item);
+  button(group,'Add split line',()=>{
+    if(controls.length>=50)throw Error('Use at most 50 split lines.');
+    if(!controls.length){add({category:category.value});}add();
+  });
+  amount.addEventListener('input',update);update();
+  return ()=>{
+    if(controls.length===1)throw Error('Add a second split line or remove the remaining line to save without a split.');
+    const lines=controls.map(row=>{
+      if(!row.category.value.trim()||!F.safe(F.cents(row.amount.value||'0')))throw Error('Give every split a category and a positive amount.');
+      return {category:row.category.value.trim(),classification:row.classification.value,cents:F.cents(row.amount.value)};
+    });
+    if(lines.length&&lines.reduce((sum,line)=>sum+line.cents,0)!==F.cents(amount.value))throw Error('Allocate the full transaction amount before saving.');
+    return lines;
+  };
+}
 function editor(r={},bill=null){panel(r.id?'Edit transaction':'New transaction');const p=section(view,'Actual payment or receipt');p.id='finance-editor';const classification=input(p,'Accounting classification',F.kind(r.type?r:{type:'Expense'}),'text',classes);const category=input(p,'Category (custom allowed)',r.category||bill?.name||'');const amount=input(p,'Amount ($)',r.cents?dollars(r.cents):bill?.amount??'');const date=input(p,'Transaction date',r.date||today(),'date');
 amount.inputMode='decimal';
-const extra=el(p,'details');el(extra,'summary','References, splits and import details');
+const extra=el(p,'details');el(extra,'summary','References and import details');
 const fields={};for(const [k,s] of [['party','Vendor / customer'],['method','Payment method'],['ref','Reference'],['note','Notes'],['vehicle','Vehicle'],['equipment','Equipment'],['settlement','Settlement'],['job','Job'],['source','Import source'],['externalId','External transaction ID']])fields[k]=input(['party','method','note'].includes(k)?p:extra,s,r[k]||'');
 const ts=input(extra,'Trade',r.trade||trade(),'text',Object.keys(categories));if(profile?.job)ts.disabled=true;
-el(extra,'label','Split lines (optional: category|classification|amount, one per line)');const splitText=el(extra,'textarea');splitText.setAttribute('aria-label','Split lines');splitText.rows=4;splitText.placeholder='Loan principal|principal|700.00\nInterest|interest|300.00';splitText.value=(r.splits||[]).map(x=>x.category+'|'+x.classification+'|'+dollars(x.cents)).join('\n');el(extra,'small','Classification codes: '+Object.keys(labels).join(', '));
+const splitRows=splitEditor(p,amount,classification,category,r.splits||[]);
 p.append(extra);let receipts=[...(r.receipts||[])];const attach=input(p,'Add receipts (PNG, JPEG, PDF, max 150 KB each)','', 'file');attach.multiple=true;attach.accept='image/png,image/jpeg,application/pdf';const names=el(p,'div');function show(){names.replaceChildren();for(const a of receipts){el(names,'p',a.name);button(names,'Remove '+a.name,()=>{receipts=receipts.filter(x=>x!==a);show()})}}show();attach.onchange=async()=>{try{const fs=[...attach.files];if(fs.length+receipts.length>3||fs.some(f=>f.size>150000||!['image/png','image/jpeg','application/pdf'].includes(f.type)))throw Error('Maximum three supported files, 150 KB each.');receipts.push(...await Promise.all(fs.map(fileData)));show()}catch(e){feedback.textContent=e.message}attach.value=''};
-button(p,'Save confirmed transaction',async()=>{const k=classification.value;if(!category.value.trim()){category.focus();throw Error('Enter a category, such as supplies or service income.')}if(!F.safe(F.cents(amount.value))){amount.focus();throw Error('Enter an amount greater than zero.')}const x={...r,id:r.id||id(),trade:ts.value,type:type(k),classification:k,category:category.value.trim(),cents:F.cents(amount.value),date:date.value,receipts,sign:1};for(const [k,v] of Object.entries(fields))x[k]=v.value.trim();if(bill)x.billKey=bill.key;if(splitText.value.trim()){x.splits=splitText.value.trim().split('\n').map(l=>{const a=l.split('|');if(a.length!==3)throw Error('Split format: category|classification|amount');return {category:a[0].trim(),classification:a[1].trim(),cents:F.cents(a[2])}})}else delete x.splits;if(!F.day(x.date)||x.date>today())throw Error('Enter actual transaction date.');F.check(x);if(!F.safe(x.cents))throw Error('Amount must be positive.');const others=all().filter(y=>y.id!==x.id);const dup=F.duplicate(x,others);if(dup&&(x.billKey&&dup.billKey===x.billKey||x.externalId&&x.externalId===dup.externalId))throw Error('This payment or external transaction is already recorded.');if(dup&&!confirm('Possible duplicate: '+dup.category+' on '+dup.date+'. Confirm this is a separate transaction.'))return;
+button(p,'Save confirmed transaction',async()=>{const k=classification.value;if(!category.value.trim()){category.focus();throw Error('Enter a category, such as supplies or service income.')}if(!F.safe(F.cents(amount.value))){amount.focus();throw Error('Enter an amount greater than zero.')}const x={...r,id:r.id||id(),trade:ts.value,type:type(k),classification:k,category:category.value.trim(),cents:F.cents(amount.value),date:date.value,receipts,sign:1};for(const [k,v] of Object.entries(fields))x[k]=v.value.trim();if(bill)x.billKey=bill.key;const allocations=splitRows();if(allocations.length)x.splits=allocations;else delete x.splits;if(!F.day(x.date)||x.date>today())throw Error('Enter actual transaction date.');F.check(x);if(!F.safe(x.cents))throw Error('Amount must be positive.');const others=all().filter(y=>y.id!==x.id);const dup=F.duplicate(x,others);if(dup&&(x.billKey&&dup.billKey===x.billKey||x.externalId&&x.externalId===dup.externalId))throw Error('This payment or external transaction is already recorded.');if(dup&&!confirm('Possible duplicate: '+dup.category+' on '+dup.date+'. Confirm this is a separate transaction.'))return;
 x.audit=F.audit(r,r.id?'edited':'created',r.id?JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['audit','receipts'].includes(k)))):'Confirmed actual transaction');await save(r.id?rows.map(y=>y.id===r.id?x:y):[...rows,x]);tab='ledger';render()});button(p,'Cancel',render)}
 let start=today().slice(0,7)+'-01',end=today(),search='',sort='date-desc',filter='';
 function filters(p,fn){const a=input(p,'From',start,'date'),b=input(p,'Through',end,'date');a.onchange=()=>{start=a.value;fn()};b.onchange=()=>{end=b.value;fn()}}
