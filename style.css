@@ -58,3 +58,6 @@ button[aria-pressed=true]{background:#deeadb;border-color:#598279}
 html[data-theme=dark] button[aria-pressed=true]{background:#405e43;color:#f3ffe9}
 html[data-theme=dark] #tax-center .tax-warning,html[data-theme=dark] #scan-center .scan-warning{background:#423a26;color:#fff1cf}
 html[data-theme=dark] .workspace-nav a:focus-visible, a:focus-visible,summary:focus-visible{outline:3px solid #528388;outline-offset:2px}
+
+/* Compact universal bottom navigation; preserve mechanic styling and focus behavior. */
+.business-tabs{padding:4px 12px max(4px,env(safe-area-inset-bottom));gap:6px}.business-tabs .navlink{min-height:44px;padding:6px 4px}.has-mechanic-tabs main{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
