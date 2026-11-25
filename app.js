@@ -21,7 +21,7 @@ function render(){
   const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
   const ledger=$('rows'),cats=$('breakdown');ledger.replaceChildren();cats.replaceChildren();const sums=new Map();
-  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));if(plainDelete(r)){const b=document.createElement('button');b.type='button';b.className='danger-action';b.textContent='Delete entry';b.setAttribute('aria-label','Delete '+r.category+' entry on '+r.date);b.onclick=()=>ask('Delete this entry?','This permanently removes the mistaken entry and updates totals.',async()=>{if(await save(rows.filter(x=>x.id!==r.id)))notifyUser('Entry deleted.');});ledger.append(b);}for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
+  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
   for(const [k,v] of [...sums].sort())line(cats,k,k.startsWith('Transfer')?'Excluded from profit':'',money(v));
   if(!list.length){ledger.textContent='No entries for this month.';cats.textContent='Category totals appear as you add entries.'}
 }
