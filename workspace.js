@@ -129,8 +129,8 @@ function render(){
   const actions=el(form,'div');actions.className='actions';
   if(step>1)btn(actions,'Back',()=>go(step-1));btn(actions,'Save progress',save);
   if(state.complete)btn(actions,'Return to dashboard',()=>{if(form.reportValidity() && registry[state.job])return go(5);});
-  const next=el(actions,'button',step===4?'Open dashboard':'Continue');next.type='submit';next.className='primary';
-  form.onsubmit=async e=>{e.preventDefault();if(next.disabled)return;next.disabled=true;const wasComplete=state.complete;if(step===4)state.complete=true;try{await go(step+1);}catch{state.step=step;state.complete=wasComplete;next.disabled=false;}};
+  const next=el(actions,'button',step===4?(state.job==='mechanic'&&!state.complete?'Open ledger':'Open dashboard'):'Continue');next.type='submit';next.className='primary';
+  form.onsubmit=async e=>{e.preventDefault();if(next.disabled)return;next.disabled=true;const wasComplete=state.complete;if(step===4)state.complete=true;try{await go(step+1);if(step===4&&!wasComplete&&state.job==='mechanic')location.replace('./?ledger');}catch{state.step=step;state.complete=wasComplete;next.disabled=false;}};
   if(state.complete){const legacy=el(content,'a','Open ledger');legacy.href='./?ledger';}
 }
 render();

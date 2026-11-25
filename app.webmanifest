@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Road & Shop",
   "short_name": "Road & Shop",
-  "start_url": "./workspace.html?home=1",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f6f5ef",
