@@ -19,7 +19,14 @@
  async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval)throw Error('Only unpaid, unapproved estimates can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
  function deleteButton(p,q){if(!q.paid&&!q.approval){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
  function screen(id){for(const x of ['list','compose','view'])$(x).hidden=x!==id;$('status').textContent='';window.scrollTo(0,0)}
- function list(){screen('list');$('paidCards').replaceChildren();const cards=$('cards');cards.replaceChildren();const all=read();$('paidCount').textContent='Paid history ('+all.filter(q=>q.paid).length+')';if(!all.some(q=>!q.paid))cards.append(el('p','Create a repair estimate to share with your customer.'));for(const q of all){const c=el('div',undefined,'card');c.append(el('h2',q.customer+' · '+Q.dollars(Q.total(q))),el('p',[q.vehicle,q.id,q.paid?'Paid '+q.paid.date:q.approval?'Approved':'Estimate',q.issued].filter(Boolean).join(' · ')));button(c,'Open estimate',()=>view(q));deleteButton(c,q);(q.paid?$('paidCards'):cards).append(c)}}
+ function list(){
+   screen('list');const cards=$('cards');cards.replaceChildren();
+   const profile=JSON.parse(BookStore.getItem(Planning.key)||'{}')||{};
+   showJobList(cards,read(),Mechanic.state(profile).jobs,(card,record,quick)=>{
+     if(quick){button(card,'Open estimate',()=>view(record));deleteButton(card,record);}
+     else {const a=el('a','Open work order');a.href='mechanic.html?job='+encodeURIComponent(record.id);card.append(a);}
+   });
+ }
  function input(label,key,type,value,max){const l=el('label',label);const i=el('input');i.dataset.field=key;i.type=type;i.value=value??'';i.required=true;if(type==='number'){i.min=key==='qty'?'.01':'0';i.step='.01';i.max=max}else i.maxLength=max;l.append(i);return l}
  const ratesKey='roadshop-shop-rates-v1';
  function shopRates(){const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
@@ -97,6 +104,10 @@
  $('form').onsubmit=async e=>{e.preventDefault();try{const q={id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);await save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
  $('export').onclick=()=>download(new File([JSON.stringify({format:key,quotes:read()})],'roadshop-quotes.json',{type:'application/json'}));
  $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){await BookStore.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
- function approval(){if(location.hash){history.replaceState(null,'',location.pathname+location.search);list();$('status').textContent='Legacy approval links are disabled because they cannot authenticate the customer. Verify the customer independently and record approval manually.';}else list();}
+ function approval(){if(location.hash){history.replaceState(null,'',location.pathname+location.search);list();$('status').textContent='Legacy approval links are disabled because they cannot authenticate the customer. Verify the customer independently and record approval manually.';}else {
+   const requested=new URLSearchParams(location.search).get('quote');
+   const record=requested&&read().find(q=>q.id===requested);
+   if(record)view(record);else {list();if(requested)$('status').textContent='This quote is unavailable in this business.';}
+ }}
  window.addEventListener('hashchange',approval);approval();
 })();
