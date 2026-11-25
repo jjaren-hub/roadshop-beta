@@ -42,9 +42,11 @@ function linkedForDeletion(r,p={},rows=[]){
  (p?.taxPlanning?.assets||[]).some(x=>x.ledgerRef===id)||
  (p?.taxPlanning?.documents||[]).some(x=>x.ref===id));
 }
+function entryMode(r,p,rows){if(linkedForDeletion(r,p,rows))return 'linked';return r.splits?.length||!['revenue','expense','other_transfer'].includes(kind(r))?'advanced':'simple';}
+function editSimple(r,fields,p,rows){if(entryMode(r,p,rows)!=='simple')throw Error('Use the original transaction module or full editor.');const next={...r,...fields,id:r.id};if(r.classification!==undefined){delete next.classification;next.classification=kind(next);}if(r.audit||r.classification||r.source||r.receipts?.length)next.audit=audit(r,'edited',JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['audit','receipts'].includes(k)))));return check(next);}
 function correctMistake(r,p,rows,id){
  if(linkedForDeletion(r,p,rows))throw Error('This transaction is linked or already reversed. Correct it in its original module.');
  return {...reverse(r,r.date,id),note:'Correction of mistaken entry '+r.id,audit:audit({},'entry correction',r.id+' — recorded in error; no actual refund')};
 }
-return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,estimate,annual,billId,billKey,paid,csvParse,csvCell,linkedForDeletion,correctMistake};
+return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,estimate,annual,billId,billKey,paid,csvParse,csvCell,linkedForDeletion,entryMode,editSimple,correctMistake};
 })();
