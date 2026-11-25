@@ -23,3 +23,8 @@ body[data-auth-pending] > :not(header):not(script):not(#auth-status){display:non
 #signout,#logout{background:#a05252;border-color:#8d4848;color:#fff}
 #signout:hover,#logout:hover{background:#8d4848}
 .workspace-nav [hidden]{display:none!important}
+
+/* Compact dashboard shortcuts, with 44px touch targets. */
+#content .dashboard-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0 14px;align-items:stretch}
+#content .dashboard-nav a,#content .dashboard-nav button{display:flex;align-items:center;justify-content:center;min-width:0;width:100%;min-height:44px;margin:0;padding:6px 8px;font-size:14px;line-height:1.25;text-align:center}
+@media(min-width:600px){#content .dashboard-nav{grid-template-columns:repeat(3,minmax(0,1fr))}}

@@ -89,11 +89,11 @@ function operating(form){
 function dashboard(){
   const mod=registry[state.job],p=state.profile,q=forecast(state,localDay());
   logo(content);el(content,'h1',p.business);el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
-  const nav=el(content,'div');nav.className='actions workspace-nav';
+  const nav=el(content,'div');nav.className='actions workspace-nav dashboard-nav';
   const link=(s,url)=>{const a=el(nav,'a',s);a.href=url;};
-  if(state.job==='truck')link('Trucking dashboard, settlements & calculators','trucking.html');
-  link('Financial dashboard & ledger','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes')){link('Mechanic dashboard, customers & jobs','mechanic.html');link('Legacy quotes & paid history','quotes.html');}
-  btn(nav,'Edit business settings',()=>go(1));
+  if(state.job==='truck')link('Trucking tools','trucking.html');
+  link('Finances','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes')){link('Mechanic tools','mechanic.html');link('Legacy quotes','quotes.html');}
+  btn(nav,'Business settings',()=>go(1));
   function card(id){if(state.hidden.includes(id))return;const n=el(content,'section');n.className='card';el(n,'h2',features[id]);return n;}
   const fixed=card('fixed');if(fixed)totals(fixed);
   const be=card('breakEven');if(be)el(be,'p',cash(q.breakEven)+' per week to cover configured operating costs.');
