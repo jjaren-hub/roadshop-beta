@@ -64,7 +64,7 @@ function profile(form){
 }
 function logo(parent){if(/^data:image\/(png|jpeg);base64,/.test(state.profile.logo||'')){const img=el(parent,'img');img.src=state.profile.logo;img.alt='Business logo';img.width=72;}}
 function bills(form){
-  if(state.complete){const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html';}
+  if(state.complete){const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html?tab=bills';}
   const suggestions=registry[state.job]?.suggestions||[];
   const select=el(el(form,'label','Suggested expense'),'select');
   for(const title of ['Custom expense',...suggestions])select.add(new Option(title));
@@ -108,7 +108,7 @@ function dashboard(){
   case 'fixed':totals(n);break;
   case 'breakEven':el(n,'p',cash(q.breakEven)+' per week to cover configured operating costs.');if(state.job==='mechanic'&&+assumptions.hourly>0)el(n,'small',(q.breakEven/assumptions.hourly).toFixed(1)+' billed labor hours per week at configured rate.');break;
   case 'target':el(n,'p',cash(q.target)+' per week · '+cash(q.target*52/12)+' per month');el(n,'small','Planning estimate from configured costs and goals.');break;
-  case 'upcoming':if(!q.upcoming.length)el(n,'p','No upcoming bills.');for(const b of q.upcoming.slice(0,5))el(n,'p',b.date+' · '+b.name+' · '+cash(+b.amount));link(n,'Recurring bills','finance.html');break;
+  case 'upcoming':if(!q.upcoming.length)el(n,'p','No upcoming bills.');for(const b of q.upcoming.slice(0,5))el(n,'p',b.date+' · '+b.name+' · '+cash(+b.amount));link(n,'Recurring bills','finance.html?tab=bills');break;
   }}
   for(const k of pref.order)if(!pref.hidden.includes(k))widget(k);
   const prefs=el(content,'details');el(prefs,'summary','Customize dashboard and navigation');
