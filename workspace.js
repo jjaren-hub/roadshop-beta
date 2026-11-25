@@ -92,7 +92,7 @@ function dashboard(){
   const nav=el(content,'div');nav.className='actions';
   const link=(s,url)=>{const a=el(nav,'a',s);a.href=url;};
   if(state.job==='truck')link('Trucking dashboard, settlements & calculators','trucking.html');
-  link('Financial dashboard & ledger','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes'))link(features.quotes,'quotes.html');
+  link('Financial dashboard & ledger','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes')){link('Mechanic dashboard, customers & jobs','mechanic.html');link('Legacy quotes & paid history','quotes.html');}
   btn(nav,'Edit business settings',()=>go(1));
   function card(id){if(state.hidden.includes(id))return;const n=el(content,'section');n.className='card';el(n,'h2',features[id]);return n;}
   const fixed=card('fixed');if(fixed)totals(fixed);
