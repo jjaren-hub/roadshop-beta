@@ -77,7 +77,7 @@ function bills(form){
     field(box,b,'frequency','Payment frequency',{choices:Object.keys(periods).filter(x=>x!=='Custom days'||b.frequency==='Custom days'),required:true});
     const due=field(box,b,'due','Next due date',{type:'date',required:true}), end=field(box,b,'end','End date (optional)',{type:'date'});
     end.min=due.value;due.addEventListener('input',()=>end.min=due.value);
-    btn(box,'Remove bill',()=>{if(JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]').some(r=>r.billKey?.startsWith((b.id||Finance.billId(b,i))+'@'))){feedback.textContent='This bill has history. Cancel it in Finance instead.';return;}state.bills.splice(i,1);changed();render();});
+    btn(box,'Remove bill',()=>{if(JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]').some(r=>r.billKey?.startsWith((b.id||Finance.billId(b,i))+'@'))){feedback.textContent='This bill has history. Cancel it in Finance instead.';return;}if(!confirm('Delete this unused recurring bill?'))return;state.bills=state.bills.map((x,n)=>({...x,id:Finance.billId(x,n)})).filter((_,n)=>n!==i);changed();render();});
   });
   const estimate=el(form,'div');el(estimate,'h2','Estimated fixed costs');const summary=el(estimate,'div');totals(summary);
   form.addEventListener('input',()=>{summary.replaceChildren();totals(summary);});

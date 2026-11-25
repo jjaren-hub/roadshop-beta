@@ -16,11 +16,12 @@ function ledgerRows(){
 }
 window.addEventListener('storage',event=>{if(event.key==='roadshop-quotes-v1')render()});
 window.addEventListener('pageshow',event=>{if(event.persisted)render()});
+function plainDelete(r){return !Finance.linkedForDeletion(r,businessProfile,rows)&&!r.classification&&!r.splits&&!r.audit&&!r.sign&&!r.source&&!r.externalId&&!r.receipts?.length;}
 function render(){
   const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
   const ledger=$('rows'),cats=$('breakdown');ledger.replaceChildren();cats.replaceChildren();const sums=new Map();
-  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
+  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));if(plainDelete(r)){const b=document.createElement('button');b.type='button';b.className='danger-action';b.textContent='Delete entry';b.setAttribute('aria-label','Delete '+r.category+' entry on '+r.date);b.onclick=()=>ask('Delete this entry?','This permanently removes the mistaken entry and updates totals.',async()=>{if(await save(rows.filter(x=>x.id!==r.id)))notifyUser('Entry deleted.');});ledger.append(b);}for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
   for(const [k,v] of [...sums].sort())line(cats,k,k.startsWith('Transfer')?'Excluded from profit':'',money(v));
   if(!list.length){ledger.textContent='No entries for this month.';cats.textContent='Category totals appear as you add entries.'}
 }
@@ -37,7 +38,7 @@ if(workspaceTrade){
 }
 function options(){const cat=$('category');cat.replaceChildren();for(const s of categories[$('trade').value][$('type').value])cat.add(new Option(s,s))}
 function edit(r){
-  if(r&&!r.id.startsWith('payment-')&&(r.classification||r.splits||r.audit||r.sign||r.billKey||r.source||r.externalId||r.job||r.settlement||r.receipts?.length||rows.some(x=>x.reversalOf===r.id)||businessProfile?.mechanic?.jobs?.some(j=>j.costs?.some(c=>c.ledgerId===r.id)||j.payments?.some(c=>c.ledgerId===r.id)))){location.assign('finance.html');return;}
+  if(r&&!r.id.startsWith('payment-')&&!plainDelete(r)){location.assign('finance.html?tab=ledger');return;}
   if(r?.id.startsWith('payment-'))return notifyUser('Payment from work order '+r.ref+' · '+r.date);
   if(!healthy)return notifyUser('Local records could not be read. Export a backup first.');
   if(phone&&!phone.canWrite()){page(true);return}

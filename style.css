@@ -48,3 +48,5 @@ body[data-auth-pending] > :not(header):not(script):not(#auth-status){display:non
 .mechanic-tabs .navlink[aria-current=true]{background:#deeadb}
 html[data-theme=dark] .mechanic-tabs .navlink[aria-current=true]{background:#405e43}
 @media print{.mechanic-tabs{display:none!important}}
+
+.danger-action{border:1px solid #a04d4d;color:#9c3737;background:#fff;min-height:44px;margin:5px 0 10px;padding:8px 12px}.danger-action:hover{background:#fbeceb}html[data-theme=dark] .danger-action{color:#ffb8b8;border-color:#c67575;background:#302525}

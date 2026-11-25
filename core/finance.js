@@ -31,5 +31,20 @@ const billKey=(b,i,d)=>billId(b,i)+'@'+d;
 const paid=(key,rows)=>rows.find(r=>r.billKey===key&&r.sign!==-1&&!rows.some(x=>x.reversalOf===r.id&&x.sign===-1));
 function csvParse(s){const out=[];let row=[],field='',quoted=false;for(let i=0;i<s.length;i++){const c=s[i];if(quoted){if(c==='"'){if(s[i+1]==='"'){field+='"';i++;}else quoted=false;}else field+=c;}else if(c==='"'&&!field)quoted=true;else if(c===','){row.push(field);field='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&s[i+1]==='\n')i++;row.push(field);out.push(row);row=[];field='';}else field+=c;}if(quoted)throw Error('Unclosed CSV quote.');if(field||row.length){row.push(field);out.push(row);}return out;}
 const csvCell=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,"'$&").replaceAll('"','""')+'"';
-return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,estimate,annual,billId,billKey,paid,csvParse,csvCell};
+// Never remove a row referenced by another record or reversal.
+function linkedForDeletion(r,p={},rows=[]){
+ const id=r.id;
+ return !!(id.startsWith('payment-')||r.billKey||r.job||r.settlement||r.reversalOf||r.sign===-1||rows.some(x=>x.reversalOf===id)||
+ (p?.mechanic?.jobs||[]).some(j=>[...(j.costs||[]),...(j.payments||[])].some(x=>x.ledgerId===id))||
+ (p?.scanner?.receipts||[]).some(x=>x.ledgerId===id)||
+ (p?.trucking?.settlements||[]).some(x=>x.ledgerIds?.includes(id))||
+ (p?.trucking?.leases||[]).some(x=>(x.payments||[]).some(y=>y.ledgerIds?.includes(id)))||
+ (p?.taxPlanning?.assets||[]).some(x=>x.ledgerRef===id)||
+ (p?.taxPlanning?.documents||[]).some(x=>x.ref===id));
+}
+function correctMistake(r,p,rows,id){
+ if(linkedForDeletion(r,p,rows))throw Error('This transaction is linked or already reversed. Correct it in its original module.');
+ return {...reverse(r,r.date,id),note:'Correction of mistaken entry '+r.id,audit:audit({},'entry correction',r.id+' — recorded in error; no actual refund')};
+}
+return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,estimate,annual,billId,billKey,paid,csvParse,csvCell,linkedForDeletion,correctMistake};
 })();
