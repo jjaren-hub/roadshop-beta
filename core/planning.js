@@ -12,9 +12,10 @@ const Planning = (() => {
     other:{label:'Other self-employed business',trade:'Other business',types:[],suggestions:common,fields:[]}
   };
   const goals=[['weekly','Weekly profit goal ($)'],['monthly','Monthly profit goal ($)'],['tax','Tax reserve (% of profit)',100],['emergency','Emergency savings goal ($/month)'],['maintenance','Maintenance reserve goal ($/month)'],['owner','Desired owner compensation ($/month)']];
-  const periods={Weekly:52,'Every two weeks':26,Monthly:12,Quarterly:4,Annual:1};
+  const periods={Daily:365,Weekly:52,'Every two weeks':26,'Twice monthly':24,Monthly:12,Quarterly:4,Semiannual:2,Annual:1,'Custom days':0};
   const key='roadshop-profile-v2';
   function nextDate(b,today){
+    if(typeof Finance!=='undefined'){const limit=new Date(today+'T00:00:00Z');limit.setUTCFullYear(limit.getUTCFullYear()+11);return Finance.occurrences(b,today,limit.toISOString().slice(0,10))[0]||null;}
     if(!b.due || !Object.hasOwn(periods,b.frequency) || b.end && b.end<today)return null;
     let due=b.due;
     if(due<today){
@@ -36,7 +37,7 @@ const Planning = (() => {
   }
   function forecast(p,today){
     const bills=p.bills.filter(b=>nextDate(b,today));
-    const annual=bills.reduce((s,b)=>s+Number(b.amount)*periods[b.frequency],0);
+    const annual=bills.reduce((s,b)=>s+(typeof Finance!=='undefined'?Finance.annual({...b,...(b.changes||[]).filter(x=>x.date<=today).sort((a,z)=>z.date.localeCompare(a.date))[0]},Number(b.units)||0)/100:Number(b.amount)*periods[b.frequency]),0);
     const weekly=annual/52, monthly=annual/12, o=p.operating[p.job]||{}, g=p.goals;
     const miles=Number(o.miles)||Number(o.loaded||0)+Number(o.deadhead||0);
     const fuel=p.job==='truck' && +o.mpg>0 ? miles/+o.mpg*Math.max(0,(+o.fuel||0)-(+o.discount||0)):0;

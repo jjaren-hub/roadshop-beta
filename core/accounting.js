@@ -4,11 +4,11 @@ function validate(list){
   const seen=new Set();
   return list.map(r=>{
     if(!r || typeof r.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(r.id)||seen.has(r.id)||
-      !Object.hasOwn(categories,r.trade)||!Object.hasOwn(categories[r.trade],r.type)||!categories[r.trade][r.type].includes(r.category)||
+      !Object.hasOwn(categories,r.trade)||!Object.hasOwn(categories[r.trade],r.type)||(typeof r.category!=='string'||!r.category.trim()||r.category.length>100)||
       !Number.isSafeInteger(r.cents)||r.cents<1||r.cents>9999999999||
       typeof r.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||new Date(r.date).toISOString().slice(0,10)!==r.date||
       typeof r.ref!=='string'||r.ref.length>100||typeof r.note!=='string'||r.note.length>250)throw Error();
-    seen.add(r.id);const {id,trade,type,category,cents,date,ref,note}=r;return {id,trade,type,category,cents,date,ref,note};
+    seen.add(r.id);if(typeof Finance!=='undefined')Finance.check(r);return {...r};
   });
 }
-function totals(list){let income=0,expense=0;for(const r of list){if(r.type==='Income')income+=r.cents;if(r.type==='Expense')expense+=r.cents}return {income,expense,net:income-expense}}
+function totals(list){if(typeof Finance!=='undefined')return Finance.total(list);let income=0,expense=0;for(const r of list){if(r.type==='Income')income+=r.cents;if(r.type==='Expense')expense+=r.cents}return {income,expense,net:income-expense}}

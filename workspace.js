@@ -60,19 +60,20 @@ function profile(form){
 }
 function logo(parent){if(/^data:image\/(png|jpeg);base64,/.test(state.profile.logo||'')){const img=el(parent,'img');img.src=state.profile.logo;img.alt='Business logo';img.width=72;}}
 function bills(form){
+  const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html';
   const suggestions=registry[state.job]?.suggestions||[];
   const select=el(el(form,'label','Suggested expense'),'select');
   for(const title of ['Custom expense',...suggestions])select.add(new Option(title));
   btn(form,'Add recurring expense',()=>{const label=select.value==='Custom expense'?'':select.value;
-    state.bills.push({name:label,category:label,frequency:'Monthly',amount:'',due:localDay(),end:''});changed();render();});
+    state.bills.push({id:crypto.randomUUID(),name:label,category:label,frequency:'Monthly',amount:'',due:localDay(),end:''});changed();render();});
   state.bills.forEach((b,i)=>{
     const box=el(form,'fieldset');el(box,'legend','Bill '+(i+1));
     field(box,b,'name','Expense name',{required:true});field(box,b,'category','Expense category',{required:true});
     const amount=field(box,b,'amount','Amount ($)',{type:'number',required:true});amount.min='.01';amount.step='.01';
-    field(box,b,'frequency','Payment frequency',{choices:Object.keys(periods),required:true});
+    field(box,b,'frequency','Payment frequency',{choices:Object.keys(periods).filter(x=>x!=='Custom days'||b.frequency==='Custom days'),required:true});
     const due=field(box,b,'due','Next due date',{type:'date',required:true}), end=field(box,b,'end','End date (optional)',{type:'date'});
     end.min=due.value;due.addEventListener('input',()=>end.min=due.value);
-    btn(box,'Remove bill',()=>{state.bills.splice(i,1);changed();render();});
+    btn(box,'Remove bill',()=>{if(JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]').some(r=>r.billKey?.startsWith((b.id||Finance.billId(b,i))+'@'))){feedback.textContent='This bill has history. Cancel it in Finance instead.';return;}state.bills.splice(i,1);changed();render();});
   });
   const estimate=el(form,'div');el(estimate,'h2','Estimated fixed costs');const summary=el(estimate,'div');totals(summary);
   form.addEventListener('input',()=>{summary.replaceChildren();totals(summary);});
@@ -87,7 +88,7 @@ function dashboard(){
   logo(content);el(content,'h1',p.business);el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
   const nav=el(content,'div');nav.className='actions';
   const link=(s,url)=>{const a=el(nav,'a',s);a.href=url;};
-  link('Open ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes'))link(features.quotes,'quotes.html');
+  link('Financial dashboard & ledger','finance.html');link('Classic ledger','./?ledger');if(state.job==='mechanic'&&!state.hidden.includes('quotes'))link(features.quotes,'quotes.html');
   btn(nav,'Edit business settings',()=>go(1));
   function card(id){if(state.hidden.includes(id))return;const n=el(content,'section');n.className='card';el(n,'h2',features[id]);return n;}
   const fixed=card('fixed');if(fixed)totals(fixed);

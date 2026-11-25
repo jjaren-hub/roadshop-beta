@@ -20,7 +20,7 @@ function render(){
   const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
   const ledger=$('rows'),cats=$('breakdown');ledger.replaceChildren();cats.replaceChildren();const sums=new Map();
-  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents),()=>edit(r));const key=r.type+' · '+r.category;sums.set(key,(sums.get(key)||0)+r.cents)}
+  for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
   for(const [k,v] of [...sums].sort())line(cats,k,k.startsWith('Transfer')?'Excluded from profit':'',money(v));
   if(!list.length){ledger.textContent='No entries for this month.';cats.textContent='Category totals appear as you add entries.'}
 }
@@ -37,6 +37,7 @@ if(workspaceTrade){
 }
 function options(){const cat=$('category');cat.replaceChildren();for(const s of categories[$('trade').value][$('type').value])cat.add(new Option(s,s))}
 function edit(r){
+  if(r&&!r.id.startsWith('payment-')&&(r.classification||r.splits||r.audit||r.sign||r.billKey||rows.some(x=>x.reversalOf===r.id))){location.assign('finance.html');return;}
   if(r?.id.startsWith('payment-'))return notifyUser('Payment from work order '+r.ref+' · '+r.date);
   if(!healthy)return notifyUser('Local records could not be read. Export a backup first.');
   if(phone&&!phone.canWrite()){page(true);return}
@@ -49,7 +50,7 @@ window.receiveBackup=receiveBackup;
 $('form').onsubmit=async e=>{e.preventDefault();const cents=parseAmount($('amount').value);if(!cents)return alert('Enter a positive amount with up to two decimal places.');const r={id:editing??crypto.randomUUID(),cents};for(const k of ['trade','type','category','date','ref','note'])r[k]=$(k).value.trim();if(await save(editing?rows.map(old=>old.id===editing?r:old):[...rows,r])){$('editor').close();$('month').value=r.date.slice(0,7);if($('scope').value!=='All trades')$('scope').value=r.trade;render()}};
 $('remove').onclick=()=>ask('Delete this entry?','This removes it from the ledger and updates the report.',async()=>{if(await save(rows.filter(r=>r.id!==editing)))$('editor').close()});
 $('cancel').onclick=()=>$('confirm').close();$('accept').onclick=()=>{$('confirm').close();pending?.();pending=null};
-$('backup').onclick=()=>{if(phone)return phone.backup();const a=document.createElement('a');a.download='roadshop-backup.json';a.href=URL.createObjectURL(new Blob([JSON.stringify({format:'roadshop-v1',entries:ledgerRows()})],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$('backup').onclick=()=>{if(phone)return phone.backup();const a=document.createElement('a');a.download='roadshop-backup.json';a.href=URL.createObjectURL(new Blob([JSON.stringify({format:'roadshop-v1',entries:rows})],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 $('restore').onclick=()=>{if(phone&&!phone.canWrite())return notifyUser('An active subscription is required to import entries.');if(phone)phone.restore();else $('file').click()};
 $('file').onchange=async()=>{const f=$('file').files[0];if(f&&f.size<=12*1024*1024+128)receiveBackup(await f.text());else notifyUser('File is too large.');$('file').value=''};
 $('add').onclick=()=>edit(null);$('close').onclick=()=>$('editor').close();$('trade').onchange=$('type').onchange=options;$('scope').onchange=$('month').onchange=render;$('account').onclick=()=>page(true);$('home').onclick=()=>page(false);$('buy').onclick=()=>phone.subscribe();$('manage').onclick=()=>phone.manage();$('refresh').onclick=()=>phone.refreshPlan();
