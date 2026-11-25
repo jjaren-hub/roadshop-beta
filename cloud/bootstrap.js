@@ -4,7 +4,7 @@ BookStore.start().then(async ready=>{
   const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
   const module=Planning.registry[profile?.job];
   const quotesAllowed=!module || (profile.job==='mechanic' && !profile.hidden.includes('quotes'));
-  if((entry!=='workspace.js' && !profile?.complete) || (entry==='app.js' && !new URLSearchParams(location.search).has('ledger')) || (entry==='quotes.js' && !quotesAllowed)){
+  if((entry!=='workspace.js' && !profile?.complete) || (entry==='app.js' && !new URLSearchParams(location.search).has('ledger')) || (entry==='quotes.js' && !quotesAllowed) || (entry==='trucking.js' && profile?.job!=='truck')){
     location.replace(profile?.complete?'workspace.html?home=1':'workspace.html');return;
   }
   if (!quotesAllowed) document.querySelectorAll('a[href="quotes.html"]').forEach(a=>a.remove());

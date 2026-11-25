@@ -51,7 +51,7 @@ const BookStore = (() => {
     if(error){status().textContent='Sync unavailable. Reconnect to save.';return;}
     if(!data){location.replace('account.html');return;}
     if(workspace.revision!==before || busy || data.revision===before)return;
-    const editing=document.querySelector('#wizard, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
+    const editing=document.querySelector('#wizard, #truck-editor, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
     if(editing){status().textContent='New changes available. Reload before saving.';return;}
     location.reload();
   }
@@ -98,5 +98,10 @@ const BookStore = (() => {
     if(!keys.includes(key))throw Error('Unknown record category.');
     if(!workspace || invalid)throw Error('Sign in to access a business.');
     await write({...workspace.books,[key]:JSON.parse(raw)});
+  },async setItems(values){
+    if(!workspace || invalid)throw Error('Sign in to access a business.');
+    const books={...workspace.books};
+    for(const [key,raw] of Object.entries(values)){if(!keys.includes(key))throw Error('Unknown record category.');books[key]=JSON.parse(raw);}
+    await write(books);
   }};
 })();
