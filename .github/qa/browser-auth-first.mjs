@@ -79,6 +79,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const button=name=>page.getByRole('button',{name,exact:true});
+ async function checkNav(selector){const result=await page.locator(selector).first().evaluate(n=>{const a=[...n.children].filter(x=>!x.hidden&&x.matches('a,button'));return {display:getComputedStyle(n).display,columns:getComputedStyle(n).gridTemplateColumns.split(' ').length,widths:a.map(x=>x.getBoundingClientRect().width),height:a.map(x=>x.getBoundingClientRect().height),active:a.filter(x=>x.matches('[aria-current=page],[aria-pressed=true]')).map(x=>getComputedStyle(x).backgroundColor),screen:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth}});assert.equal(result.display,'grid');assert.equal(result.columns,result.screen<600?2:3);assert(result.widths.length>0);assert(Math.max(...result.widths)-Math.min(...result.widths)<1);assert(result.height.every(h=>h>=38));assert(result.active.every(c=>c==='rgb(192, 233, 120)'));assert(!result.overflow)}
  if(job==='truck'){
    await page.goto(root+'backup.html');await page.getByText('Last verified external backup: Never',{exact:true}).waitFor();
    const pw='fictional encrypted backup password';
@@ -177,7 +178,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,3);
  }
  if(job==='truck'){
-   await page.goto(root+'trucking.html');await button('Trucks & mileage').click();await page.getByLabel('Truck unit name').fill('Fixture 101');await button('Save truck').click();
+   await page.goto(root+'trucking.html');await page.locator('#truck-controls .module-nav').waitFor();await checkNav('#truck-controls .module-nav');await checkNav('main .workspace-nav');await button('Trucks & mileage').click();await checkNav('#truck-controls .module-nav');await page.getByLabel('Truck unit name').fill('Fixture 101');await button('Save truck').click();
    await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();await page.getByLabel('Loaded miles',{exact:true}).fill('100');await page.getByLabel('Deadhead miles',{exact:true}).fill('10');await button('Save mileage').click();
    await page.getByText(/Deletion protected:/).waitFor();await button('Delete truck Fixture 101').click();await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();
    page.once('dialog',d=>d.accept());await button('Remove mileage record').click();await page.getByText(/Deletion protected:/).waitFor({state:'detached'});page.once('dialog',d=>d.accept());await button('Delete truck Fixture 101').click();await page.getByText('No trucks added yet.').waitFor();
@@ -220,7 +221,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.category==='Offline tools').length,1);
  }
  if(sub==='Mobile mechanic'){
-   await page.goto(root+'mechanic.html');await button('Quotes & work orders').click();await button('Add customer').click();await page.getByLabel('Customer name').fill('Fixture Motors');await button('Save customer').click();
+   await page.goto(root+'mechanic.html');await page.locator('#mechanic-controls .module-nav').waitFor();await checkNav('#mechanic-controls .module-nav');await button('Quotes & work orders').click();await button('Add customer').click();await page.getByLabel('Customer name').fill('Fixture Motors');await button('Save customer').click();
    await button('Add vehicle for Fixture Motors').click();await page.getByLabel('Year',{exact:true}).fill('2020');await page.getByLabel('Make',{exact:true}).fill('Fixture');await page.getByLabel('Model / equipment').fill('Service truck');await button('Save vehicle').click();await page.getByRole('heading',{name:'2020 Fixture Service truck'}).waitFor();
    await button('Quotes & work orders').click();await button('New quote').click();await page.getByLabel('Customer',{exact:true}).selectOption({index:1});await page.getByLabel('Vehicle / equipment').selectOption({index:1});
    await page.getByLabel('Job description').fill('Replace filter');await page.getByLabel('Description',{exact:true}).fill('Oil filter');await page.getByLabel('Actual purchase price per part',{exact:false}).fill('20');await page.getByLabel('Default parts markup (%)').fill('25');await button('Save draft quote').click();await page.getByRole('heading',{name:'Quote / work order'}).waitFor();

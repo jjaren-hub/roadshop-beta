@@ -147,3 +147,44 @@ html #content .dashboard-nav :is(a,button):active{box-shadow:none;transform:tran
 html #content .dashboard-nav :is(a,button):focus-visible{outline:3px solid var(--ek-focus);outline-offset:2px}
 @media(max-width:599px){html #content .dashboard-nav{gap:6px 8px}html #content .dashboard-nav :is(a,button){min-height:38px;padding:5px 6px;font-size:12.5px}html #content .dashboard-nav :is(a,button){overflow-wrap:anywhere}}
 @media(prefers-reduced-motion:reduce){html #content .dashboard-nav :is(a,button):active{transform:none}}
+
+
+/* Universal navigation system. Grid alignment applies only to navigation, never form actions. */
+:root{--ek-nav-bg:#233427;--ek-nav-fg:#d4f2a1;--ek-nav-border:#83aa58;--ek-nav-hover:#314933}
+html[data-theme=light]{--ek-nav-bg:#e4efdb;--ek-nav-fg:#27451c;--ek-nav-border:#78985e;--ek-nav-hover:#d6e9c6}
+html .workspace-nav,html .module-nav,html #content .dashboard-nav{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px;
+ align-items:stretch;justify-content:stretch;margin:8px 0 14px
+}
+html .workspace-nav> :is(a,button),html .module-nav> :is(a,button),html #content .dashboard-nav> :is(a,button){
+ display:flex;align-items:center;justify-content:center;text-align:center;width:100%;min-width:0;
+ min-height:38px;max-width:100%;margin:0;padding:5px 7px;font-size:13px;font-weight:700;line-height:1.25;
+ border:1px solid var(--ek-nav-border);border-radius:7px;background:var(--ek-nav-bg);
+ color:var(--ek-nav-fg);text-decoration:none;white-space:normal;overflow-wrap:anywhere;box-shadow:0 2px 4px #0002
+}
+html:not([data-theme=light]) .workspace-nav> :is(a,button),html:not([data-theme=light]) .module-nav> :is(a,button),
+html[data-theme=light] .workspace-nav> :is(a,button),html[data-theme=light] .module-nav> :is(a,button),
+html:not([data-theme=light]) #content .workspace-nav>a,html[data-theme=light] #content .workspace-nav>a{
+ background:var(--ek-nav-bg);border-color:var(--ek-nav-border);color:var(--ek-nav-fg)
+}
+html .workspace-nav> :is(a,button):hover:not(:disabled),html .module-nav> :is(a,button):hover:not(:disabled){background:var(--ek-nav-hover);border-color:var(--ek-focus)}
+html .workspace-nav> :is(a,button)[hidden],html .module-nav> :is(a,button)[hidden]{display:none!important}
+html .workspace-nav> :is(a,button):is([aria-current=page],[aria-current=true],[aria-pressed=true]),
+html .module-nav> :is(a,button):is([aria-current=page],[aria-current=true],[aria-pressed=true]),
+html:not([data-theme=light]) .module-nav> :is(a,button):is([aria-current=page],[aria-current=true],[aria-pressed=true]),
+html[data-theme=light] .module-nav> :is(a,button):is([aria-current=page],[aria-current=true],[aria-pressed=true]),
+html:not([data-theme=light]) #scan-center .scan-grid button[aria-current=page],
+html:not([data-theme=light]) .tax-nav button[aria-current=page],
+html #content .dashboard-nav a[data-tool=finance]{
+ background:#c0e978;border-color:#c0e978;color:#15200c;box-shadow:0 2px 4px #0003
+}
+html .workspace-nav>#signout,html .workspace-nav>#logout,html:not([data-theme=light]) .workspace-nav>#signout,html[data-theme=light] .workspace-nav>#signout{background:var(--ek-danger-bg);color:var(--ek-negative);border-color:#a15f5f}
+html .workspace-nav> :is(a,button):focus-visible,html .module-nav> :is(a,button):focus-visible{outline:3px solid var(--ek-focus);outline-offset:2px}
+html #truck-controls>label{display:grid;gap:4px;margin:0 0 8px}
+html #truck-controls>label select{width:100%;min-width:0}
+html .business-tabs{gap:8px;padding:6px 12px max(6px,env(safe-area-inset-bottom))}
+html .business-tabs>.navlink,html:not([data-theme=light]) .business-tabs>.navlink,html[data-theme=light] .business-tabs>.navlink{background:var(--ek-nav-bg);color:var(--ek-nav-fg);border:1px solid var(--ek-nav-border);border-radius:7px;min-height:38px;padding:5px 8px;font-size:13px;line-height:1.25}
+html .business-tabs>.navlink:is([aria-current=page],[aria-current=true]),html:not([data-theme=light]) .business-tabs>.navlink:is([aria-current=page],[aria-current=true]),html[data-theme=light] .business-tabs>.navlink:is([aria-current=page],[aria-current=true]){background:#c0e978;color:#15200c;border-color:#c0e978}
+@media(min-width:600px){html .workspace-nav,html .module-nav,html #content .dashboard-nav{grid-template-columns:repeat(3,minmax(0,1fr))}html .workspace-nav> :is(a,button),html .module-nav> :is(a,button){min-height:40px}}
+@media(max-width:599px){html .workspace-nav> :is(a,button),html .module-nav> :is(a,button){font-size:12.5px}}
+@media print{html .workspace-nav,html .module-nav,html .business-tabs{display:none!important}}
