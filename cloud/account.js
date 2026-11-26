@@ -54,6 +54,7 @@
     row.append(b,action);parent.append(row);
   }
   function openBusiness(id) {
+    if(managing||!user)return;
     const value = JSON.stringify({user:user.id,id});
     sessionStorage.setItem(selection,value);
     localStorage.setItem('roadshop-last-'+user.id,value);
@@ -61,7 +62,7 @@
   }
   async function display(session) {
     const version=++displayVersion;
-    user=null;
+    user=null;$('member').hidden=true;$('guest').hidden=true;$('identity').textContent='';$('businesses').replaceChildren();$('archived-businesses').replaceChildren();
     $('account-title').textContent='Sign in to EarnKeep';
     if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
     $('guest').hidden = !!user; $('member').hidden = !user;
@@ -132,8 +133,10 @@
     check(await auth.updateUser({password:$('newPassword').value})); $('newPassword').value='';say('Password updated.');
   });
   $('create').onsubmit=run(async()=>{
-    const space=check(await api.from('workspaces').insert({name:$('business').value.trim()}).select('id').single());
-    openBusiness(space.id);
+    if(managing||!user)return;const owner=user.id;const name=$('business').value.trim();if(!name)throw Error('Enter a business name.');
+    const verified=check(await auth.getUser());if(verified.user?.id!==owner||user?.id!==owner)throw Error('Account changed. Sign in again.');
+    const space=check(await api.from('workspaces').insert({name}).select('id').single());
+    if(user?.id===owner)openBusiness(space.id);
   });
   $('logout').onclick=run(async()=>{
     check(await auth.signOut({scope:'local'})); sessionStorage.removeItem(selection); location.replace('account.html');

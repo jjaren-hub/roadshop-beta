@@ -5,7 +5,7 @@ const day=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.par
 const str=(v,n)=>typeof v==='string'&&v.length<=n;
 const cents=v=>{const s=String(v).trim();if(!/^\d{1,8}(?:\.\d{1,2})?$/.test(s))throw Error('Enter dollars with at most two decimals.');const [a,b='']=s.split('.');return Number(a)*100+Number(b.padEnd(2,'0'));};
 const safe=n=>Number.isSafeInteger(n)&&n>0&&n<=9999999999;
-const kind=r=>r.classification|| (r.type==='Income'?'revenue':r.type==='Expense'?'expense':({'Escrow contribution':'escrow_out','Escrow release':'escrow_in','Buyout reserve':'savings_out','Equipment reserve':'savings_out','Sales tax collected':'sales_tax'})[r.category]||'other_transfer');
+const kind=r=>r.classification|| (r.type==='Income'?'revenue':r.type==='Expense'?'expense':({'Escrow contribution':'escrow_out','Escrow release':'escrow_in','Maintenance escrow contribution':'escrow_out','Maintenance escrow release':'escrow_in','Tire escrow contribution':'escrow_out','Tire escrow release':'escrow_in','Truck principal':'principal','Advance repayment':'principal','Advance received':'owner_contribution','Buyout reserve':'savings_out','Equipment reserve':'savings_out','Sales tax collected':'sales_tax'})[r.category]||'other_transfer');
 const lines=r=>r.splits?.length?r.splits:[{cents:r.cents,category:r.category,classification:kind(r)}];
 function check(r){if(!r||!str(r.id,80)||!day(r.date)||!safe(r.cents)||!str(r.category,100)||!r.category.trim()||!Object.hasOwn(classes,kind(r)))throw Error('Invalid transaction.');
 for(const k of ['party','method','vehicle','equipment','settlement','job','source','externalId','billKey','reversalOf','ref','note'])if(r[k]!==undefined&&!str(r[k],k==='note'?250:180))throw Error('Invalid '+k);
@@ -39,11 +39,12 @@ function linkedForDeletion(r,p={},rows=[]){
  (p?.scanner?.receipts||[]).some(x=>x.ledgerId===id)||
  (p?.trucking?.settlements||[]).some(x=>x.ledgerIds?.includes(id))||
  (p?.trucking?.leases||[]).some(x=>(x.payments||[]).some(y=>y.ledgerIds?.includes(id)))||
+ (p?.trucking?.maintenance||[]).some(x=>x.ledgerIds?.includes(id))||
  (p?.taxPlanning?.assets||[]).some(x=>x.ledgerRef===id)||
  (p?.taxPlanning?.documents||[]).some(x=>x.ref===id));
 }
 function entryMode(r,p,rows){if(linkedForDeletion(r,p,rows))return 'linked';return r.splits?.length||!['revenue','expense','other_transfer'].includes(kind(r))?'advanced':'simple';}
-function editSimple(r,fields,p,rows){if(entryMode(r,p,rows)!=='simple')throw Error('Use the original transaction module or full editor.');const next={...r,...fields,id:r.id};if(r.classification!==undefined){delete next.classification;next.classification=kind(next);}if(r.audit||r.classification||r.source||r.receipts?.length)next.audit=audit(r,'edited',JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['audit','receipts'].includes(k)))));return check(next);}
+function editSimple(r,fields,p,rows){if(entryMode(r,p,rows)!=='simple')throw Error('Use the original transaction module or full editor.');const next={...r,...Object.fromEntries(Object.entries(fields).filter(([k])=>['trade','type','category','cents','date','ref','note'].includes(k))),id:r.id};if(r.classification!==undefined){delete next.classification;next.classification=kind(next);}if(r.audit||r.classification||r.source||r.receipts?.length)next.audit=audit(r,'edited',JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['audit','receipts'].includes(k)))));return check(next);}
 function correctMistake(r,p,rows,id){
  if(linkedForDeletion(r,p,rows))throw Error('This transaction is linked or already reversed. Correct it in its original module.');
  return {...reverse(r,r.date,id),note:'Correction of mistaken entry '+r.id,audit:audit({},'entry correction',r.id+' — recorded in error; no actual refund')};

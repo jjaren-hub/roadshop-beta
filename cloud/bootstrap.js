@@ -24,8 +24,11 @@ BookStore.start().then(async ready=>{
 
   const script=document.createElement('script');
   script.src=document.getElementById('entry-script').dataset.src;
-  script.onload=()=>{document.body.removeAttribute('data-auth-pending');document.getElementById('auth-status')?.remove();};
-  script.onerror=()=>showAuthError(Error('Could not load the workspace. Reload and try again.'));
+  let failed=false;
+  const initializationError=event=>{if(event.filename===script.src){failed=true;showAuthError(Error('Workspace initialization failed. Reload or return to sign in.'));}};
+  window.addEventListener('error',initializationError);
+  script.onload=()=>{window.removeEventListener('error',initializationError);if(!failed){document.body.removeAttribute('data-auth-pending');document.getElementById('auth-status')?.remove();}};
+  script.onerror=()=>{window.removeEventListener('error',initializationError);showAuthError(Error('Could not load the workspace. Reload and try again.'));};
   document.body.append(script);
 }).catch(showAuthError);
 function installBusinessTabs(entry){

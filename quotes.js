@@ -98,7 +98,7 @@
      if(!confirm('Record full payment of '+Q.dollars(Q.total(q))+' on '+date.value+' and move this order to paid history?'))return;
      const post=async()=>{
        const latest=read().find(order=>order.id===q.id);if(!latest)throw Error('Work order could not be found.');
-       if(!latest.paid){if(!Finance.day(date.value)||date.value>Q.today())throw Error('Enter actual payment date.');latest.paid={date:date.value};await save(latest)}
+       if(!latest.paid){if(!Finance.day(date.value)||date.value>Q.today())throw Error('Enter actual payment date.');latest.paid={date:date.value};Q.validate(latest,true);validate(WorkPayments.rows([latest]));await save(latest)}
        list();$('status').textContent='Payment recorded in the ledger for '+q.id+'.';
      };
      if(navigator.locks)await navigator.locks.request('roadshop-payment',post);else await post();
@@ -106,7 +106,7 @@
  }
  $('new').onclick=()=>compose();$('cancel').onclick=list;$('additem').onclick=()=>item();$('addMileage').onclick=()=>item(undefined,'mileage');$('addLabor').onclick=()=>item(undefined,'labor');$('addFee').onclick=()=>item(undefined,'manual');$('form').oninput=calc;
  $('form').onsubmit=async e=>{e.preventDefault();try{const q={trade,id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);await save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
- $('export').onclick=()=>download(new File([JSON.stringify({format:key,quotes:read()})],'roadshop-quotes.json',{type:'application/json'}));
+ $('export').onclick=()=>download(new File([JSON.stringify({format:key,quotes:read()})],'earnkeep-quotes.json',{type:'application/json'}));
  $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if((q.trade||'Mechanic')!==trade)throw Error('Quote belongs to a different business type');if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){await BookStore.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
  function approval(){if(location.hash){history.replaceState(null,'',location.pathname+location.search);list();$('status').textContent='Legacy approval links are disabled because they cannot authenticate the customer. Verify the customer independently and record approval manually.';}else {
    const requested=new URLSearchParams(location.search).get('quote');

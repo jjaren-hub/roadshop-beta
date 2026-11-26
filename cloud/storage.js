@@ -1,6 +1,7 @@
 // A single revision covers ledger entries, private quotes and shop defaults together.
 const BookStore = (() => {
   const keys = ['roadshop-ledger-v1','roadshop-quotes-v1','roadshop-shop-rates-v1','roadshop-profile-v2'];
+  const archiveKey='roadshop-workspace-archive-v1';
   const local = window.localStorage;
   let workspace, owner, busy=false, invalid=false, checking=false;
   const api=window.cloudClient;
@@ -8,6 +9,7 @@ const BookStore = (() => {
   function checkBooks(books){
     if (!books || typeof books!=='object' || Array.isArray(books)) throw Error('Invalid workspace data.');
     for(const [key,value] of Object.entries(books)){
+      if(key===archiveKey){if(typeof value!=='string'||!Number.isFinite(Date.parse(value)))throw Error('Invalid archive status.');continue;}
       if(!keys.includes(key)) throw Error('Workspace needs a newer app version.');
       if(key===keys[0]) validate(value);
       if(key===keys[1]){
@@ -23,6 +25,7 @@ const BookStore = (() => {
   }
   async function write(books){
     if(invalid || busy) throw Error('Workspace changed or is saving. Refresh and retry.');
+    if(workspace?.books?.[archiveKey]||books[archiveKey])throw Error('Restore this business before saving.');
     checkBooks(books);
     busy=true;
     try{
@@ -30,6 +33,7 @@ const BookStore = (() => {
         .eq('id',workspace.id).eq('owner_id',owner).eq('revision',workspace.revision).select('revision').maybeSingle();
       if(error) throw error;
       if(!data) throw Error('Workspace changed on another device. Refresh before saving.');
+      if(invalid)throw Error('Session changed. Reopen your business.');
       workspace={...workspace,books,revision:data.revision};
       status().textContent=workspace.name+' · Saved';
     } catch(e){status().textContent=e.message;throw e;}
@@ -50,8 +54,12 @@ const BookStore = (() => {
     const before=workspace.revision;
     const {data,error}=await api.from('workspaces').select('revision').eq('id',workspace.id).eq('owner_id',owner).maybeSingle();
     if(error){status().textContent='Sync unavailable. Reconnect to save.';return;}
-    if(!data){location.replace('account.html');return;}
-    if(workspace.revision!==before || busy || data.revision===before)return;
+    if(!data){invalid=true;document.body.setAttribute('data-auth-pending','');sessionStorage.removeItem('roadshop-active-workspace');location.replace('account.html?switch=1');return;}
+    if(workspace.revision!==before || busy || invalid || data.revision===before)return;
+    const current=await api.from('workspaces').select('revision,archived:books->>roadshop-workspace-archive-v1').eq('id',workspace.id).eq('owner_id',owner).maybeSingle();
+    if(current.error){status().textContent='Sync unavailable. Reconnect to save.';return;}
+    if(invalid||busy||workspace.revision!==before)return;
+    if(!current.data||current.data.archived){invalid=true;document.body.setAttribute('data-auth-pending','');for(const [s,k] of [[sessionStorage,'roadshop-active-workspace'],[local,'roadshop-last-'+owner]]){try{const x=JSON.parse(s.getItem(k));if(x?.user===owner&&x.id===workspace.id)s.removeItem(k);}catch{}}location.replace('account.html?switch=1');return;}
     const editing=document.querySelector('#wizard, #report-view, #scan-editor, #tax-editor, #mechanic-editor, #truck-editor, #finance-editor:not([hidden]), dialog[open], #compose:not([hidden]), #view:not([hidden]), details[open]');
     if(editing){status().textContent='New changes available. Reload before saving.';return;}
     location.reload();
