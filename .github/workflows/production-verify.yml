@@ -1,0 +1,32 @@
+name: EarnKeep production verification
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/production-verify.yml', '.github/qa/verify-production.mjs']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EARNKEEP_TEST_URL: https://earnkeep.app/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify approved production asset hashes and security headers
+        run: node .github/qa/verify-production.mjs
+      - name: Install pinned browser test dependency
+        run: npm install --no-save --ignore-scripts playwright-core@1.65.1
+      - name: Use existing Chrome or install Chromium
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            npx playwright-core install --with-deps chromium
+          fi
+      - name: Exercise live production UI with fictional intercepted backend only
+        run: node .github/qa/browser-auth-first.mjs
