@@ -1,12 +1,12 @@
 {
   "id": "./",
-  "name": "Road & Shop",
-  "short_name": "Road & Shop",
+  "name": "EarnKeep",
+  "short_name": "EarnKeep",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f6f5ef",
-  "theme_color": "#143f43",
+  "theme_color": "#101617",
   "icons": [
     {
       "src": "./icon-192.png",
@@ -19,7 +19,7 @@
       "type": "image/png"
     }
   ],
-  "description": "Business bookkeeping, trucking and mechanic tools",
+  "description": "Know your numbers. Own your success. Bookkeeping and financial tools for small businesses.",
   "shortcuts": [
     {
       "name": "Business dashboard",

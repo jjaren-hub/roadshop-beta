@@ -62,7 +62,7 @@
   async function display(session) {
     const version=++displayVersion;
     user=null;
-    $('account-title').textContent='Sign in to Road & Shop';
+    $('account-title').textContent='Sign in to EarnKeep';
     if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;
