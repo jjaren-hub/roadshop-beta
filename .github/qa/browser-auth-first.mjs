@@ -114,6 +114,20 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  }
  if(job==='general'){
    await page.goto(root+'billing.html');
+   // Exercise complete backup restore, owner separation and stale revision rejection on the actual device database.
+   const localCheck=await page.evaluate(async owner=>{
+     const original=(await LocalBooks.list(owner))[0], other='fixture-independent-owner';
+     const empty=await LocalBooks.list(other);
+     const copied=await LocalBooks.restore(other,[original]);
+     const restored=await LocalBooks.read(other,original.id);
+     const skipped=await LocalBooks.restore(other,[original]);
+     await LocalBooks.write(other,original.id,restored.revision,restored.books);
+     let stale=false;try{await LocalBooks.write(other,original.id,restored.revision,{})}catch{stale=true}
+     const same=JSON.stringify((await LocalBooks.read(owner,original.id)).books)===JSON.stringify(original.books);
+     return {empty:empty.length,copied,skipped,stale,same,restored:JSON.stringify(restored.books)===JSON.stringify(original.books)};
+   },uid);
+   assert.deepEqual(localCheck,{empty:0,copied:1,skipped:0,stale:true,same:true,restored:true});
+
    for(const name of ['Basic · $4.99 / month','Pro · $9.99 / month'])await page.getByRole('heading',{name,exact:true}).waitFor();
    const trials=button('Start 7-day trial (test mode)');assert.equal(await trials.count(),2);assert(await trials.first().isDisabled());assert(await trials.last().isDisabled());
    for(let i=0;i<2;i++){await button('Load test invoice history').click();await page.getByText('No invoices yet.',{exact:true}).waitFor();}
