@@ -33,7 +33,8 @@ const billId=(b,i)=>b.id||'legacy-'+i+'-'+String(b.due||'');
 const billKey=(b,i,d)=>billId(b,i)+'@'+d;
 const paid=(key,rows)=>rows.find(r=>r.billKey===key&&r.sign!==-1&&!rows.some(x=>x.reversalOf===r.id&&x.sign===-1));
 function csvParse(s){const out=[];let row=[],field='',quoted=false;for(let i=0;i<s.length;i++){const c=s[i];if(quoted){if(c==='"'){if(s[i+1]==='"'){field+='"';i++;}else quoted=false;}else field+=c;}else if(c==='"'&&!field)quoted=true;else if(c===','){row.push(field);field='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&s[i+1]==='\n')i++;row.push(field);out.push(row);row=[];field='';}else field+=c;}if(quoted)throw Error('Unclosed CSV quote.');if(field||row.length){row.push(field);out.push(row);}return out;}
-const csvCell=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,"'$&").replaceAll('"','""')+'"';
+// Quote every text cell and neutralize spreadsheet formulas, including hidden leading whitespace.
+const csvCell=v=>{const s=String(v??'');return '"'+(/^[\s\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f]*[=+\-@＝＋－＠]|^[\t\r\n]/u.test(s)?"'"+s:s).replaceAll('"','""')+'"';};
 // Never remove a row referenced by another record or reversal.
 function linkedForDeletion(r,p={},rows=[]){
  const id=r.id;
