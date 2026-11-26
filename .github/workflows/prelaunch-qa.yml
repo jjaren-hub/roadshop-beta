@@ -1,0 +1,41 @@
+name: EarnKeep beta quality gate
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: earnkeep-beta-qa
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EARNKEEP_TEST_URL: https://jjaren-hub.github.io/roadshop-beta/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test dependency
+        run: npm install --no-save --ignore-scripts playwright-core@1.65.1
+      - name: Use existing Chrome or install Chromium
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            npx playwright-core install --with-deps chromium
+          fi
+      - name: Run static and accounting regression suites
+        run: |
+          mkdir -p tests
+          cp .github/qa/*.mjs tests/
+          for name in release-static finance trucking mechanic scanner tax-planning retention reconciliation quote-security commercial offline-vault; do
+            node "tests/$name.mjs" || exit 1
+          done
+      - name: Verify deployed beta bytes
+        run: node .github/qa/verify-deployment.mjs
+      - name: Run browser workflows on published beta using intercepted fictional backend
+        run: node tests/browser-auth-first.mjs
