@@ -77,6 +77,31 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const button=name=>page.getByRole('button',{name,exact:true});
+ // Every occupation must acknowledge the current local tax disclaimer before tools appear.
+ await page.goto(root+'tax-planning.html');
+ const gate=page.locator('#tax-disclaimer-gate');await gate.waitFor();
+ assert.equal(await page.locator('#tax-nav button').count(),0);
+ assert(await button('Accept & Continue').isDisabled());
+ const ack=gate.getByRole('checkbox');await ack.check();await button('Accept & Continue').click();
+ await page.locator('#tax-disclaimer-notice').waitFor();
+ await page.getByRole('heading',{name:'Estimated tax center'}).waitFor();
+ const key='earnkeep-tax-disclaimer:'+uid;
+ const acceptance=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);
+ assert.equal(acceptance.version,'2026-11-26-v1');assert(Number.isFinite(Date.parse(acceptance.acceptedAt)));
+ await page.reload();await page.getByRole('heading',{name:'Estimated tax center'}).waitFor();
+ await page.evaluate(key=>localStorage.setItem(key,JSON.stringify({version:'old-version',acceptedAt:new Date().toISOString()})),key);
+ await page.reload();await gate.waitFor();assert(await button('Accept & Continue').isDisabled());
+ await ack.check();await button('Accept & Continue').click();
+ await button('Reports & checklist').click();
+ if(job==='truck'){
+   for(const name of ['Download accountant summary CSV','Download detailed ledger CSV']){
+     const downloading=page.waitForEvent('download');await button(name).click();
+     const stream=await (await downloading).createReadStream();let content='';for await(const chunk of stream)content+=chunk;
+     for(const paragraph of ["EarnKeep is a financial recordkeeping and estimation tool, not a tax preparation or professional tax advisory service.","Tax estimates, deductions, classifications and calculations are provided for informational purposes only and are not guaranteed to be accurate, complete or applicable to your individual circumstances.","You are responsible for verifying your financial information, determining deduction eligibility and complying with applicable tax laws. Consult a qualified tax professional before filing or making tax-related decisions."])assert(content.includes(paragraph),name+' must include complete disclaimer');
+   }
+   const downloading=page.waitForEvent('download');await button('Download accountant summary PDF').click();assert.match((await downloading).suggestedFilename(),/^tax-summary-\d{4}\.pdf$/);
+ }
+
  if(sub==='Repair shop'){
    await page.goto(root+'finance.html?tab=ledger');await button('Add transaction').click();
    await page.getByLabel('Category (custom allowed)').fill('Fixture loan');await page.getByLabel('Amount ($)',{exact:true}).fill('10');
