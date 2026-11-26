@@ -132,3 +132,18 @@ html[data-brand-entry]{color-scheme:dark}
 .account-entry #guest summary{color:#c0e978;cursor:pointer;min-height:36px}
 .account-entry #guest input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #101817 inset;-webkit-text-fill-color:#f1f3f1;caret-color:#f1f3f1}
 @media(max-width:360px){.account-entry #guest{padding:16px}.account-entry .account-actions{grid-template-columns:1fr}}
+
+
+/* Compact, higher-contrast EarnKeep dashboard shortcuts. */
+html #content .dashboard-nav{gap:8px;margin:6px 0 12px}
+html #content .dashboard-nav :is(a,button){min-height:40px;padding:5px 7px;font-size:13px;line-height:1.2;font-weight:700;border-radius:7px;box-shadow:0 2px 4px #0002;overflow-wrap:normal}
+html:not([data-theme=light]) #content .dashboard-nav :is(a,button){background:#233427;border:1px solid #83aa58;color:#d4f2a1}
+html:not([data-theme=light]) #content .dashboard-nav :is(a,button):hover{background:#314933;border-color:#c0e978;color:#e9ffd0}
+html[data-theme=light] #content .dashboard-nav :is(a,button){background:#e4efdb;border:1px solid #78985e;color:#27451c}
+html[data-theme=light] #content .dashboard-nav :is(a,button):hover{background:#d6e9c6;border-color:#557a39}
+html #content .dashboard-nav a[data-tool=finance]{background:#c0e978;border-color:#c0e978;color:#15200c;box-shadow:0 2px 4px #0003}
+html #content .dashboard-nav a[data-tool=finance]:hover{background:#d7f5a4;border-color:#d7f5a4;color:#15200c}
+html #content .dashboard-nav :is(a,button):active{box-shadow:none;transform:translateY(1px)}
+html #content .dashboard-nav :is(a,button):focus-visible{outline:3px solid var(--ek-focus);outline-offset:2px}
+@media(max-width:599px){html #content .dashboard-nav{gap:6px 8px}html #content .dashboard-nav :is(a,button){min-height:38px;padding:5px 6px;font-size:12.5px}html #content .dashboard-nav :is(a,button){overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){html #content .dashboard-nav :is(a,button):active{transform:none}}

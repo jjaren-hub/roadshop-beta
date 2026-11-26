@@ -95,10 +95,10 @@ function dashboard(){
   const commercial=window.RoadCommercial?.status;logo(content);el(content,'h1',p.business);if(commercial?.announcement)el(content,'p',commercial.announcement);if(commercial&&!RoadCommercial.access(commercial))el(content,'p','Subscription inactive. Your records are available for viewing and export; new writes require an eligible plan.');el(content,'p',[mod.label,p.subtype].filter(Boolean).join(' · '));
   const nav=el(content,'div');nav.className='actions workspace-nav dashboard-nav';
   const links=[['finance','Finances','finance.html'],...(state.job==='truck'?[['truck','Trucking tools','trucking.html']]:[]),...(state.job==='mechanic'?[['mechanic','Mechanic tools','mechanic.html'],['quotes','Legacy quotes','quotes.html']]:[]),['reports','Reports & reminders','reports.html'],['scanner','Scan & insights','scanner.html'],['tax','Taxes & planning','tax-planning.html'],['offline','Offline entry','offline.html'],['classic','Classic ledger','ledger.html?ledger'],['backup','Backup & Recovery','backup.html'],['billing','Billing','billing.html'],['support','Help & support','support.html'],...(commercial?.isAdmin?[['admin','Administration','admin.html']]:[])].filter(([k])=>!['scanner','reports','offline'].includes(k)||commercial?.flags?.[k]!==false);
-  const link=(parent,s,url)=>{const a=el(parent,'a',s);a.href=url;};
-  for(const [k,label,url] of links)if(!['billing','support','admin'].includes(k)&&!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes')))link(nav,label,url);
+  const link=(parent,s,url,tool)=>{const a=el(parent,'a',s);a.href=url;if(tool)a.dataset.tool=tool;};
+  for(const [k,label,url] of links)if(!['billing','support','admin'].includes(k)&&!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes')))link(nav,label,url,k);
   btn(nav,'Business settings',()=>go(1));
-  const allTools=el(content,'details');el(allTools,'summary','All tools & shortcuts');const more=el(allTools,'div');more.className='workspace-nav dashboard-nav';for(const [k,label,url] of links)if(!(k==='quotes'&&state.hidden.includes('quotes')))link(more,label,url);
+  const allTools=el(content,'details');el(allTools,'summary','All tools & shortcuts');const more=el(allTools,'div');more.className='workspace-nav dashboard-nav';for(const [k,label,url] of links)if(!(k==='quotes'&&state.hidden.includes('quotes')))link(more,label,url,k);
   const name={actual:'Actual performance',health:'Business health',reminders:'Reminders',...features};
   const metric=(parent,k,v)=>{const a=el(parent,'p');el(a,'small',k);el(a,'strong',v)};
   function widget(k){const n=el(content,'section');n.className='card retention-widget';el(n,'h2',name[k]);switch(k){
