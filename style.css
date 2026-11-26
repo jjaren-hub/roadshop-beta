@@ -190,3 +190,26 @@ html .business-tabs>.navlink:is([aria-current=page],[aria-current=true]),html:no
 @media print{html .workspace-nav,html .module-nav,html .business-tabs{display:none!important}}
 
 #insight-center label{display:grid;gap:5px;margin:10px 0;font-weight:600}#insight-center label :is(input,select){width:100%;min-width:0}#insight-center .insight-table{overflow-x:auto}#insight-center .insight-table table{width:100%;border-collapse:collapse;font-size:14px}#insight-center .insight-table :is(td,th){padding:7px;border-bottom:1px solid var(--ek-line);text-align:left}
+
+/* Professional customer document: paper-white regardless of app appearance. */
+html .customer-document{background:#fff;color:#182420;border:1px solid #bcc8c0;border-top:4px solid #315c36;border-radius:5px;padding:20px;margin:14px 0;font:14px/1.45 Arial,sans-serif;overflow-wrap:anywhere;color-scheme:light}
+html .customer-document h2{font-size:23px;margin:0 0 5px;color:#182420;line-height:1.2}
+html .customer-document h3{font-size:11px;letter-spacing:.04em;margin:0 0 6px;color:#315c36;font-weight:750}
+html .customer-document p{margin:2px 0;color:#182420;white-space:pre-wrap}
+html .customer-document .document-top,html .customer-document .document-info{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #bcc8c0}
+html .customer-document .document-meta{text-align:right}
+html .customer-document .document-meta h3{font-size:16px}
+html .customer-document .document-description{margin:0 0 12px}
+html .customer-document .document-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;font-variant-numeric:tabular-nums;margin:10px 0 14px}
+html .customer-document .document-table th{background:#f0f4ef;color:#182420;font-weight:700}
+html .customer-document .document-table :is(th,td){padding:7px 4px;border-bottom:1px solid #bcc8c0;text-align:right;vertical-align:top;overflow-wrap:anywhere}
+html .customer-document .document-table :is(th,td):first-child{width:43%;text-align:left}
+html .customer-document .document-table :is(th,td):nth-child(2){width:15%}
+html .customer-document .document-totals{margin:12px 0 18px auto;width:min(100%,320px);font-variant-numeric:tabular-nums}
+html .customer-document .document-totals div{display:flex;justify-content:space-between;gap:8px;padding:5px 7px}
+html .customer-document .document-totals dd{margin:0;font-weight:600;text-align:right}
+html .customer-document .document-grand{background:#f0f4ef;border-top:1px solid #315c36;font-size:16px;font-weight:750}
+html .customer-document .document-approval{border-top:1px solid #bcc8c0;margin:22px 0 14px;padding-top:14px;font-size:12px}
+html .customer-document .document-footer{font-size:10px;color:#46574f;border-top:1px solid #bcc8c0;padding-top:7px;margin-top:14px}
+@media(max-width:500px){html .customer-document{padding:12px}html .customer-document .document-top,html .customer-document .document-info{grid-template-columns:1fr;gap:8px}html .customer-document .document-meta{text-align:left}html .customer-document .document-table{font-size:11px}}
+@media print{@page{size:letter;margin:12mm}html body:has(.customer-document) main{max-width:none!important;width:auto!important;padding:0!important;margin:0!important}html body:has(.customer-document) main>*:not(:has(.customer-document)):not(.customer-document),html body:has(.customer-document) #view>*:not(.customer-document),html body:has(.customer-document)>*:not(main){display:none!important}html .customer-document{border:0;border-top:3px solid #315c36;border-radius:0;margin:0;padding:0;box-shadow:none!important}html .customer-document .document-top,html .customer-document .document-info{grid-template-columns:1fr 1fr}html .customer-document .document-meta{text-align:right}html .customer-document thead{display:table-header-group}html .customer-document tr,html .customer-document .document-totals,html .customer-document .document-approval{break-inside:avoid}html #customerView>.customer-document{display:block!important}}
