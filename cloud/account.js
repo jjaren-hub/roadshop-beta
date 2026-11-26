@@ -64,15 +64,17 @@
     const version=++displayVersion;
     user=null;$('member').hidden=true;$('guest').hidden=true;$('identity').textContent='';$('businesses').replaceChildren();$('archived-businesses').replaceChildren();
     $('account-title').textContent='Sign in to EarnKeep';
-    if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
+    if(session||navigator.onLine===false){try{user=await DeviceSession.user()}catch{if(version!==displayVersion)return;$('guest').hidden=false;say('Could not verify this session. Sign in again or reconnect.');return}if(version!==displayVersion)return;}
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;
-    $('start-setup').hidden=true;$('create').hidden=true;
+    $('start-setup').hidden=true;$('create').hidden=true;$('local-disclosure').hidden=true;
     if (!user){sessionStorage.removeItem(selection);if($('notice').textContent==='Checking your sign-in…')say('');return;}
     $('account-title').textContent=recoveryCallback?'Reset your password':'Your account';
     if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
+    if(EarnKeepBackup.read(user.id,'disclosure')?.version!==1){const box=$('local-disclosure'),accept=$('local-disclosure-accept');box.hidden=false;const check=$('local-disclosure-check');check.checked=false;accept.disabled=true;check.onchange=()=>{accept.disabled=!check.checked};accept.onclick=run(async()=>{if(!$('local-disclosure-check').checked)return;EarnKeepBackup.write(user.id,'disclosure',{version:1,acceptedAt:new Date().toISOString()});await EarnKeepBackup.persistent().catch(()=>false);await display(session)});return;}
+    EarnKeepBackup.attach(user.id,$('member'));
     const owner=user.id;const allSpaces=(await LocalBooks.list(owner)).map(w=>({...w,profile_name:w.books['roadshop-profile-v2']?.profile?.business,archived:w.books[archiveKey]}));
     const spaces=allSpaces.filter(s=>!s.archived),archived=allSpaces.filter(s=>!!s.archived);
     if(version!==displayVersion)return;
@@ -139,7 +141,7 @@
     if(user?.id===owner)openBusiness(space.id);
   });
   $('logout').onclick=run(async()=>{
-    check(await auth.signOut({scope:'local'})); sessionStorage.removeItem(selection); location.replace('account.html');
+    await DeviceSession.signOut(); sessionStorage.removeItem(selection); location.replace('account.html');
   });
   auth.onAuthStateChange((event,session)=>{
     if (event==='PASSWORD_RECOVERY'){
@@ -148,6 +150,6 @@
     if (event==='SIGNED_OUT') display(null);
     if (event==='SIGNED_IN' && session?.user && session.user.id!==user?.id) setTimeout(()=>{if(session.user.id!==user?.id)display(session).catch(e=>say(e.message));},0);
   });
-  try { await display(check(await auth.getSession()).session); }
+  try { await display(navigator.onLine===false?null:check(await auth.getSession()).session); }
   catch(err){say(err.message);}
 })();

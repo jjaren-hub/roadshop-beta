@@ -25,7 +25,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    for(const [id,path] of [['reset','recover'],['resend','resend']]){const response=page.waitForResponse(r=>r.url().includes('/auth/v1/'+path)&&r.request().method()==='POST');await page.locator('#'+id).click();assert.equal((await response).status(),200);await page.getByText('Check your email for the requested link.').waitFor();}
    await page.locator('#password').fill('fictional-password');
  }
- await page.locator('button[value=login]').click();await page.locator('#start-setup').click();
+ await page.locator('button[value=login]').click();await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').click();
  await page.getByLabel('Occupation',{exact:true}).selectOption(label);if(sub)await page.getByLabel('Type of business',{exact:true}).selectOption(sub);await page.getByLabel('Business name',{exact:true}).fill('Fixture '+trade);
  await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Operating costs',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:job==='mechanic'?'Open ledger':'Open dashboard',exact:true}).click();
  if(job==='mechanic'){await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();await page.getByRole('link',{name:'Dashboard',exact:true}).click();}
@@ -77,6 +77,46 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const button=name=>page.getByRole('button',{name,exact:true});
+ if(job==='truck'){
+   await page.goto(root+'backup.html');await page.getByText('Last verified external backup: Never',{exact:true}).waitFor();
+   const pw='fictional encrypted backup password';
+   await page.getByLabel('Backup password (optional, 12+ characters)',{exact:true}).fill(pw);
+   await page.getByLabel('Repeat backup password',{exact:true}).fill(pw);
+   const downloading=page.waitForEvent('download');await button('Download complete backup').click();
+   const stream=await (await downloading).createReadStream();let backup='';for await(const chunk of stream)backup+=chunk;
+   const envelope=JSON.parse(backup);assert.equal(envelope.encrypted,true);assert(!backup.includes('Fixture supplies'));
+   await page.getByText('Download requested.',{exact:false}).waitFor();
+   await page.getByText('Last verified external backup: Never',{exact:true}).waitFor();
+   const results=await page.evaluate(async ({uid,pw,backup})=>{
+     const B=EarnKeepBackup,decoded=await B.decode(backup,uid,pw),original=await LocalBooks.list(uid);let wrong=false,other=false,tampered=false,duplicate=false;
+     try{await B.decode(backup,uid,'wrong password 123')}catch{wrong=true}
+     try{await B.decode(backup,'another-account',pw)}catch{other=true}
+     const raw=JSON.parse(await B.encode(decoded.payload));raw.payload=raw.payload.replace('Fixture','Altered');
+     try{await B.decode(JSON.stringify(raw),uid)}catch{tampered=true}
+     try{await LocalBooks.restore(uid,[{...original[0],id:'different-business-id'}])}catch{duplicate=true}
+     return {wrong,other,tampered,duplicate,same:JSON.stringify(original)===JSON.stringify(decoded.payload.workspaces),never:B.age(uid).last===null};
+   },{uid,pw,backup});
+   assert.deepEqual(results,{wrong:true,other:true,tampered:true,duplicate:true,same:true,never:true});
+   await page.getByLabel('Saved backup file',{exact:true}).setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(backup)});
+   await page.getByLabel('Password if encrypted',{exact:true}).fill(pw);await button('Verify backup file').click();
+   await page.getByText('External file integrity verified.',{exact:false}).waitFor();
+   await page.getByText('Last verified external backup:',{exact:false}).waitFor();assert(!(await page.getByText('Last verified external backup:',{exact:false}).textContent()).includes('Never'));
+   const warnings=await page.evaluate(owner=>{const B=EarnKeepBackup;const now=Date.now(),p=document.createElement('div');B.write(owner,'last',{date:new Date(now-3*86400000).toISOString()});B.reminder(owner,p);const three=p.textContent;B.write(owner,'last',{date:new Date(now-7*86400000).toISOString()});B.reminder(owner,p);return {three,seven:p.textContent,role:p.firstChild.getAttribute('role')}},uid);
+   assert.match(warnings.three,/Backup reminder/);assert.match(warnings.seven,/WARNING/);assert.equal(warnings.role,'alert');
+   const alternate='https://earnkeep-migration-fixture.invalid/';
+   await ctx.route(alternate+'**',async route=>{const url=new URL(route.request().url()),response=await ctx.request.get(root+url.pathname.slice(1)+url.search);await route.fulfill({response})});
+   await page.goto(alternate+'backup.html');await page.getByText('Sign in online before opening your backups.',{exact:true}).waitFor();
+   assert.equal(await page.evaluate(()=>localStorage.getItem('roadshop-auth-v1')),null);
+   await page.goto(alternate+'account.html');await page.locator('#guest').waitFor();await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');await page.locator('button[value=login]').click();
+   await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').waitFor();
+   await page.goto(alternate+'backup.html');await page.getByText('0 businesses (including archived).',{exact:false}).waitFor();
+   await page.getByLabel('Backup to restore',{exact:true}).setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(backup)});await page.getByLabel('Backup password if encrypted',{exact:true}).fill(pw);
+   page.once('dialog',d=>d.accept());await button('Inspect and restore backup').click();await page.getByText('Restored 1 new businesses.',{exact:false}).waitFor();
+   assert.equal(await page.evaluate(async owner=>(await LocalBooks.list(owner))[0].books['roadshop-ledger-v1'].length,uid),(await page.evaluate(async ({owner,pw,backup})=>(await EarnKeepBackup.decode(backup,owner,pw)).payload.workspaces[0].books['roadshop-ledger-v1'].length,{owner:uid,pw,backup})));
+   await page.getByLabel('Backup to restore',{exact:true}).setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(backup)});await page.getByLabel('Backup password if encrypted',{exact:true}).fill(pw);page.once('dialog',d=>d.accept());await button('Inspect and restore backup').click();await page.getByText('Restored 0 new businesses.',{exact:false}).waitFor();
+   await page.goto(root+'workspace.html?home=1');await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();
+ }
+
  // Every occupation must acknowledge the current local tax disclaimer before tools appear.
  await page.goto(root+'tax-planning.html');
  const gate=page.locator('#tax-disclaimer-gate');await gate.waitFor();

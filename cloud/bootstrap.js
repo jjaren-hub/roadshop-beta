@@ -1,5 +1,6 @@
 BookStore.start().then(async ready=>{
   if(!ready)return;
+  const backupScript=document.createElement('script');backupScript.src='core/backup.js';backupScript.onload=()=>{const main=document.querySelector('main');if(main)EarnKeepBackup.attach(BookStore.ownerId,main)};document.head.append(backupScript);
   const entry=document.getElementById('entry-script').dataset.src;
   if(typeof RoadCommercial!=='undefined'){const feature=({'workspace.js':'dashboard','finance.js':'finance','app.js':'finance','trucking.js':'trucking','mechanic.js':'mechanic','scanner.js':'scanner','tax-planning.js':'tax','reports.js':'reports','quotes.js':'mechanic'})[entry];if(entry==='workspace.js'){try{const s=await RoadCommercial.load();if(!RoadCommercial.access(s)){const a=document.createElement('a');a.href='billing.html';a.textContent=' Subscription inactive · manage billing or export';document.getElementById('workspace-status')?.append(a);}}catch{}}RoadCommercial.activity(feature);}
 
@@ -12,12 +13,10 @@ BookStore.start().then(async ready=>{
   if(businessReady) installBusinessTabs(entry);
   const logout=document.getElementById('signout');
   if(window.cloudClient && logout){
-    const {data}=await cloudClient.auth.getSession();
-    logout.hidden=!data.session;
+    logout.hidden=false;
     logout.onclick=async()=>{
       try{await window.flushWorkspaceDraft?.();}catch(e){document.getElementById('workspace-status').textContent=e.message;return;}
-      const {error}=await cloudClient.auth.signOut({scope:'local'});
-      if(error){document.getElementById('workspace-status').textContent=error.message;return;}
+      try{await DeviceSession.signOut()}catch(error){document.getElementById('workspace-status').textContent=error.message;return;}
       sessionStorage.removeItem('roadshop-active-workspace');location.replace('account.html');
     };
   }
