@@ -80,6 +80,7 @@ const BookStore = (() => {
     const {data,error}=await api.from('workspaces').select('id,name,revision,books').eq('id',target.id).eq('owner_id',owner).single();
     if(error){if(error.code==='PGRST116'){local.removeItem('roadshop-last-'+owner);return redirect();}throw error;}
     if(!data){local.removeItem('roadshop-last-'+owner);return redirect();}
+    if(data.books?.['roadshop-workspace-archive-v1']){local.removeItem('roadshop-last-'+owner);sessionStorage.removeItem(active);location.replace('account.html?switch=1');return false;}
     if(invalid)return false;
     checkBooks(data.books);workspace=data;sessionStorage.setItem(active,JSON.stringify(target));
     status().textContent=data.name+' · Cloud workspace';

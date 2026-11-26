@@ -19,7 +19,40 @@
     try { await fn(event); } catch (err) { say(err.message); }
     finally { control.disabled = false; }
   };
-  let user, displayVersion=0;
+  let user, displayVersion=0, managing=false;
+  const archiveKey='roadshop-workspace-archive-v1';
+  function clearSelection(owner,id){
+    for(const [storage,key] of [[sessionStorage,selection],[localStorage,'roadshop-last-'+owner]]){
+      try{const current=JSON.parse(storage.getItem(key));if(current?.user===owner&&current.id===id)storage.removeItem(key);}catch{}
+    }
+  }
+  async function changeArchive(space,archive){
+    if(managing||!user)return;
+    const owner=user.id,name=space.profile_name||space.name;
+    if(!confirm(archive?'Remove "'+name+'" from your active businesses? Its records will be kept and you can restore it later. Sync any pending offline entries first.':'Restore "'+name+'" to your active businesses?'))return;
+    managing=true;
+    try{
+      const verified=check(await auth.getUser());
+      if(verified.user?.id!==owner||user?.id!==owner)throw Error('Account changed. Sign in again.');
+      const current=check(await api.from('workspaces').select('id,revision,books').eq('id',space.id).eq('owner_id',owner).single());
+      if(!current||!current.books||typeof current.books!=='object'||Array.isArray(current.books))throw Error('Business unavailable.');
+      const books={...current.books};
+      if(archive)books[archiveKey]=new Date().toISOString();else delete books[archiveKey];
+      if(user?.id!==owner)throw Error('Account changed. Sign in again.');
+      const saved=check(await api.from('workspaces').update({books,revision:current.revision+1}).eq('id',space.id).eq('owner_id',owner).eq('revision',current.revision).select('id').maybeSingle());
+      if(!saved)throw Error('Business changed on another device. Refresh and retry.');
+      if(archive)clearSelection(owner,space.id);
+      location.replace('account.html?switch=1&workspace='+ (archive?'removed':'restored'));
+    }finally{managing=false;}
+  }
+  function businessRow(parent,space,archived){
+    const row=document.createElement('div');row.className='business-manage-row';
+    const name=space.profile_name||space.name;
+    const b=document.createElement(archived?'span':'button');b.textContent=name;
+    if(!archived){b.type='button';b.className='business-open';b.onclick=()=>openBusiness(space.id);}
+    const action=document.createElement('button');action.type='button';action.className=archived?'business-restore':'business-remove';action.textContent=archived?'Restore':'Remove';action.setAttribute('aria-label',(archived?'Restore ':'Remove ')+name);action.onclick=run(()=>changeArchive(space,!archived));
+    row.append(b,action);parent.append(row);
+  }
   function openBusiness(id) {
     const value = JSON.stringify({user:user.id,id});
     sessionStorage.setItem(selection,value);
@@ -32,14 +65,15 @@
     $('account-title').textContent='Sign in to Road & Shop';
     if(session){const {data:verified,error}=await auth.getUser();if(version!==displayVersion)return;if(error){$('guest').hidden=false;$('member').hidden=true;sessionStorage.removeItem(selection);say('Could not verify this session. Sign in again or reconnect.');return;}user=verified.user?.is_anonymous?null:verified.user;}
     $('guest').hidden = !!user; $('member').hidden = !user;
-    $('businesses').replaceChildren();
+    $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;
     $('start-setup').hidden=true;$('create').hidden=true;
     if (!user){sessionStorage.removeItem(selection);if($('notice').textContent==='Checking your sign-in…')say('');return;}
     $('account-title').textContent=recoveryCallback?'Reset your password':'Your account';
     if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
-    const owner=user.id;const spaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business').eq('owner_id',owner).order('name'));
+    const owner=user.id;const allSpaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business,archived:books->>roadshop-workspace-archive-v1').eq('owner_id',owner).order('name'));
+    const spaces=allSpaces.filter(s=>!s.archived),archived=allSpaces.filter(s=>!!s.archived);
     if(version!==displayVersion)return;
     if(!recoveryCallback && !switchMode){
       if(spaces.length){
@@ -47,15 +81,15 @@
         const selected=spaces.find(space=>space.id===last?.id && last.user===user.id)||spaces[0];
         openBusiness(selected.id);return;
       }
-      $('start-setup').hidden=false;
+      if(!archived.length){$('start-setup').hidden=false;
       $('start-setup').onclick=run(async()=>{
         if(creatingFirst)return;
         $('start-setup').disabled=true;
         const owner=user.id;
         try{
           creatingFirst=(async()=>{
-            const existing=check(await api.from('workspaces').select('id').eq('owner_id',owner).order('name'));
-            if(existing.length)return existing[0];
+            const existing=check(await api.from('workspaces').select('id,archived:books->>roadshop-workspace-archive-v1').eq('owner_id',owner).order('name'));
+            const active=existing.find(x=>!x.archived);if(active)return active;
             return check(await api.from('workspaces').insert({name:'My business'}).select('id').single());
           })();
           const space=await creatingFirst;
@@ -63,14 +97,16 @@
         }finally{creatingFirst=null;$('start-setup').disabled=false;}
       });
       say('Set up your first business to continue.');
-      return;
+      return;}
     }
     $('start-setup').hidden=true;
     $('create').hidden=false;
-    for(const space of spaces) {
-      const b = document.createElement('button'); b.textContent=space.profile_name||space.name;
-      b.onclick=()=>openBusiness(space.id); $('businesses').append(b);
-    }
+    if(!spaces.length){const p=document.createElement('p');p.textContent='No active businesses. Create a business or restore one below.';$('businesses').append(p);}
+    for(const space of spaces)businessRow($('businesses'),space,false);
+    $('archive-section').hidden=!archived.length;
+    for(const space of archived)businessRow($('archived-businesses'),space,true);
+    if(query.get('workspace')==='removed')say('Business removed. Its records are saved under Archived businesses.');
+    if(query.get('workspace')==='restored')say('Business restored.');
   }
   $('credentials').onsubmit=run(async e=>{
     const credentials={email:$('email').value.trim(),password:$('password').value};
