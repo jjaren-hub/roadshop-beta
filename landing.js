@@ -1,0 +1,2 @@
+// Preserve existing ledger bookmarks and installed-app entry behavior without reading financial data.
+(()=>{const q=new URLSearchParams(location.search);if(q.has('ledger')){location.replace('ledger.html'+location.search+location.hash);return;}if(matchMedia('(display-mode: standalone)').matches||navigator.standalone===true)location.replace('account.html');})();

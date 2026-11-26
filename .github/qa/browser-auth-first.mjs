@@ -19,6 +19,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  else if(url.pathname.endsWith('/workspaces')||url.pathname.endsWith('/roadshop-document-scan')){errors.push('Forbidden financial network request '+url.pathname);status=403;result={message:'Financial data must stay on this device'}}
  await r.fulfill({status,headers,contentType:'application/json',body:JSON.stringify(result)})});
  const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
+ await page.goto(root);await page.getByRole('heading',{name:'Know your numbers. Own your success.'}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('script[src*="cloud/"]').count(),0);await page.getByRole('link',{name:'Get started'}).first().click();await page.getByRole('heading',{name:'Create your EarnKeep account'}).waitFor();await page.locator('#guest').waitFor();
  await page.goto(root+'finance.html');await page.waitForURL('**/account.html');await page.locator('#guest').waitFor();
  await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');if(job==='other'){
    await page.locator('button[value=signup]').click();await page.getByText('Check your email for the verification link.').waitFor();await page.getByText('Need help signing in?').click();
@@ -44,7 +45,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();
  await page.reload();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();
  // Root/app launch is occupation-aware; only completed mechanic workspaces get permanent tabs.
- await page.goto(root);
+ await page.goto(root+'ledger.html');
  if(job==='mechanic'){
    await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
    const tabs=page.getByRole('navigation',{name:'Business navigation'});

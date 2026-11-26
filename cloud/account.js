@@ -58,12 +58,12 @@
     const value = JSON.stringify({user:user.id,id});
     sessionStorage.setItem(selection,value);
     localStorage.setItem('roadshop-last-'+user.id,value);
-    location.assign('./');
+    location.assign('ledger.html');
   }
   async function display(session) {
     const version=++displayVersion;
     user=null;$('member').hidden=true;$('guest').hidden=true;$('identity').textContent='';$('businesses').replaceChildren();$('archived-businesses').replaceChildren();
-    $('account-title').textContent='Sign in to EarnKeep';
+    $('account-title').textContent=query.has('signup')?'Create your EarnKeep account':'Sign in to EarnKeep';
     if(session||navigator.onLine===false){try{user=await DeviceSession.user()}catch{if(version!==displayVersion)return;$('guest').hidden=false;say('Could not verify this session. Sign in again or reconnect.');return}if(version!==displayVersion)return;}
     $('guest').hidden = !!user; $('member').hidden = !user;
     $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;

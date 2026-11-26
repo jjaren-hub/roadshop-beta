@@ -2,7 +2,7 @@
   "id": "./",
   "name": "EarnKeep",
   "short_name": "EarnKeep",
-  "start_url": "./",
+  "start_url": "./account.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f6f5ef",
