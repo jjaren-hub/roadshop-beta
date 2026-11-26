@@ -15,7 +15,7 @@ const Planning = (() => {
   const periods={Daily:365,Weekly:52,'Every two weeks':26,'Twice monthly':24,Monthly:12,Quarterly:4,Semiannual:2,Annual:1,'Custom days':0};
   const key='roadshop-profile-v2';
   function nextDate(b,today){
-    if(typeof Finance!=='undefined'){const limit=new Date(today+'T00:00:00Z');limit.setUTCFullYear(limit.getUTCFullYear()+11);return Finance.occurrences(b,today,limit.toISOString().slice(0,10))[0]||null;}
+    if(typeof Finance!=='undefined'){return Finance.nextOccurrence(b,today);}
     if(!b.due || !Object.hasOwn(periods,b.frequency) || b.end && b.end<today)return null;
     let due=b.due;
     if(due<today){
@@ -37,17 +37,29 @@ const Planning = (() => {
   }
   function forecast(p,today){
     const bills=p.bills.filter(b=>nextDate(b,today));
-    const annual=bills.reduce((s,b)=>s+(typeof Finance!=='undefined'?Finance.annual({...b,...(b.changes||[]).filter(x=>x.date<=today).sort((a,z)=>z.date.localeCompare(a.date))[0]},Number(b.units)||0)/100:Number(b.amount)*periods[b.frequency]),0);
-    const weekly=annual/52, monthly=annual/12, o=p.operating[p.job]||{}, g=p.goals;
-    const miles=Number(o.miles)||Number(o.loaded||0)+Number(o.deadhead||0);
-    const fuel=p.job==='truck' && +o.mpg>0 ? miles/+o.mpg*Math.max(0,(+o.fuel||0)-(+o.discount||0)):0;
-    const escrow=p.job==='truck'?miles*(+o.escrow||0):0;
-    const keep=p.job==='truck'?1-(+o.dispatch||0)/100:1;
+    const o=p.operating?.[p.job]||{},g=p.goals||{},truck=p.job==='truck';
+    const positive=v=>Number.isFinite(+v)&&+v>0?+v:0;
+    const miles=positive(o.miles)||positive(o.loaded)+positive(o.deadhead),mpg=positive(o.mpg),diesel=positive(o.fuel);
+    const fuel=truck&&mpg?miles/mpg*Math.max(0,diesel-positive(o.discount)):0;
+    const escrow=truck?miles*positive(o.escrow):0;
+    const keep=truck?1-positive(o.dispatch)/100:1;
+    let annual=0,cashAnnual=0,excluded=[];
+    for(const raw of bills){
+      const b={...raw,...(raw.changes||[]).filter(x=>x.date<=today).sort((a,z)=>z.date.localeCompare(a.date))[0]};
+      const cls=b.classification||'expense',label=(b.category||'')+' '+(b.name||'');
+      const amounts=typeof Finance!=='undefined'?Finance.annual(b,positive(b.units))/100:positive(b.amount)*(periods[b.frequency]||0);
+      const kind=typeof Finance!=='undefined'?Finance.classes[cls]:cls==='expense'||cls==='interest'?[-1,-1]:[0,-1];
+      if(!kind)continue;
+      if(truck&&((kind[0]===-1&&(/dispatch/i.test(label)&&positive(o.dispatch)>0||/diesel|fuel purchase/i.test(label)&&miles>0&&mpg>0&&diesel>0))||(kind[0]===0&&kind[1]===-1&&/escrow|maintenance reserve/i.test(label)&&positive(o.escrow)>0))){excluded.push(b.name||b.category);continue;}
+      if(kind[0]===-1)annual+=amounts;
+      else if(kind[1]===-1)cashAnnual+=amounts;
+    }
+    const weekly=annual/52,monthly=annual/12,cashWeekly=cashAnnual/52;
     const profit=Math.max(+g.weekly||0,(+g.monthly||0)*12/52);
     const allocations=['emergency','maintenance','owner'].reduce((s,k)=>s+(+g[k]||0),0)*12/52;
     const afterTax=1-(+g.tax||0)/100;
     const targetProfit=allocations===0?profit:Math.max(profit,afterTax>0?allocations/afterTax:Infinity);
-    return {weekly,monthly,annual,breakEven:(weekly+fuel)/keep,target:(weekly+fuel+escrow+targetProfit)/keep,
+    return {weekly,monthly,annual,cashWeekly,cashAnnual,excluded,breakEven:keep>0?(weekly+fuel)/keep:Infinity,target:keep>0?(weekly+fuel+cashWeekly+escrow+targetProfit)/keep:Infinity,
       projected:p.job==='truck'?(+o.loaded||0)*((+o.linehaul||0)+(+o.fsc||0)):p.job==='mechanic'?(+o.hours||0)*(+o.hourly||0):null,
       upcoming:bills.map(b=>({...b,date:nextDate(b,today)})).sort((a,b)=>a.date.localeCompare(b.date))};
   }

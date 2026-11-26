@@ -44,7 +44,7 @@ function localDay(){const d=new Date();return [d.getFullYear(),String(d.getMonth
 function cash(n){return Number.isFinite(n)?n.toLocaleString('en-US',{style:'currency',currency:'USD'}):'No finite target';}
 function totals(parent){
   const q=forecast(state,localDay());
-  el(parent,'p','Weekly '+cash(q.weekly)+' · Monthly '+cash(q.monthly)+' · Annual '+cash(q.annual));
+  el(parent,'p','Weekly '+cash(q.weekly)+' · Monthly '+cash(q.monthly)+' · Annual '+cash(q.annual));if(q.cashWeekly)el(parent,'small','Additional nonexpense cash commitments: '+cash(q.cashWeekly)+' / week.');if(q.excluded?.length)el(parent,'small','Already included in operating assumptions: '+q.excluded.join(', ')+'.');
 }
 async function go(step){
   state.step=step;await save();render();window.scrollTo(0,0);
