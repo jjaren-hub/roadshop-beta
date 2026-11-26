@@ -1,0 +1,5 @@
+import {readFileSync} from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const {I,F}=vm.runInNewContext(['core/finance.js','core/trucking.js','core/insights.js'].map(p=>readFileSync(p,'utf8')).join('\n')+';({I:Insights,F:Finance})',{structuredClone});
+const p={job:'other',scanner:{receipts:[{id:'legacy-receipt',ledgerId:'legacy-row',document:{name:'old.png',type:'image/png',data:'data:image/png;base64,abc='}}]}};
+const make=(id,date,cents)=>({id,date,trade:'Other business',type:'Expense',category:'Materials',classification:'expense',cents,sign:1});
+const rows=[make('a','2026-10-01',1000),make('b','2026-10-02',1000),make('c','2026-10-03',1000),make('legacy-row','2026-11-02',7000)];const before=JSON.stringify({p,rows}),r=I.insights(p,rows,'2026-11-01','2026-11-30','2026-10-01','2026-10-31');assert.equal(r.now.expense,7000);assert.equal(r.missing.length,0);assert.equal(r.unusual[0].id,'legacy-row');assert.equal(r.changes[0].change,4000);assert.equal(I.docs(p,rows)[0].name,'old.png');assert.equal(JSON.stringify({p,rows}),before);console.log('PASS local insights and historical receipt preservation');

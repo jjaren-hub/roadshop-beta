@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p tests
           cp .github/qa/*.mjs tests/
-          for name in release-static finance trucking mechanic scanner tax-planning retention reconciliation quote-security commercial offline-vault; do
+          for name in release-static finance trucking mechanic insights tax-planning retention reconciliation quote-security commercial offline-vault; do
             node "tests/$name.mjs" || exit 1
           done
       - name: Verify deployed beta bytes

@@ -4,3 +4,6 @@ for(const p of shell){assert(existsSync(p),'Missing cache asset '+p);if(p.endsWi
 const privateKeyPatterns=[/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}/,/\bsb_secret_[A-Za-z0-9_-]{16,}/,/\bwhsec_[A-Za-z0-9]{16,}/,/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,/\bAIza[A-Za-z0-9_-]{35}\b/];
 for(const p of shell){if(!/\.(?:js|html|webmanifest|css)$/.test(p))continue;const s=readFileSync(p,'utf8');for(const pattern of privateKeyPatterns)assert(!pattern.test(s),'Possible secret in '+p);for(const m of s.matchAll(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g)){try{const payload=JSON.parse(Buffer.from(m[0].split('.')[1],'base64url'));assert(payload.role!=='service_role','Service-role token in '+p)}catch(e){if(e.code==='ERR_ASSERTION')throw e}}}
 console.log('PASS '+shell.size+' precache assets, script references, JS parse, CSP presence and known secret patterns');
+
+for(const p of ['scanner.html','scanner.js','core/scanner.js']){assert(!shell.has(p),'Retired scanner cached '+p);assert(!existsSync(p),'Retired scanner still published '+p)}
+for(const p of shell){if(!p.endsWith('.html')&&!p.endsWith('.js'))continue;if(['cloud/client.js','pdf-lib.min.js'].includes(p))continue;const s=readFileSync(p,'utf8');assert(!/scanner\.html|TextDetector|Extract fields from text|Scan settlement PDF or photo/.test(s),'Retired scanner entry in '+p)}

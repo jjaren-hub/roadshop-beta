@@ -15,7 +15,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  else if(url.pathname.endsWith('/token')){signed=true;result=session}
  else if(url.pathname.endsWith('/user')){result=signed?user:{message:'Not signed in'};status=signed?200:401}
  else if(url.pathname.endsWith('/logout')){signed=false;result={}}
- else if(url.pathname.endsWith('/roadshop-commercial'))result=data.action==='status'?{enforcement:false,occupations:['truck','mechanic','general','other'],flags:{scanner:true,reports:true,offline:true},isAdmin:false,plans:[{code:'basic',name:'Basic',amount_cents:499},{code:'pro',name:'Pro',amount_cents:999}].map(p=>({...p,interval:'month',capabilities:{workspaces:1,ocr_pages:0,ai_questions:0}})),trialDays:7,trialEligible:true,checkoutEnabled:false,subscription:{status:'none'}}:data.action==='history'?{invoices:[],more:false}:{ok:true};
+ else if(url.pathname.endsWith('/roadshop-commercial'))result=data.action==='status'?{enforcement:false,occupations:['truck','mechanic','general','other'],flags:{scanner:false,reports:true,offline:true},isAdmin:false,plans:[{code:'basic',name:'Basic',amount_cents:499},{code:'pro',name:'Pro',amount_cents:999}].map(p=>({...p,interval:'month',capabilities:{workspaces:1,ocr_pages:0,ai_questions:0}})),trialDays:7,trialEligible:true,checkoutEnabled:false,subscription:{status:'none'}}:data.action==='history'?{invoices:[],more:false}:{ok:true};
  else if(url.pathname.endsWith('/workspaces')||url.pathname.endsWith('/roadshop-document-scan')){errors.push('Forbidden financial network request '+url.pathname);status=403;result={message:'Financial data must stay on this device'}}
  await r.fulfill({status,headers,contentType:'application/json',body:JSON.stringify(result)})});
  const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
@@ -53,7 +53,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal(await tabs.locator('button, a').count(),2);
    await page.getByRole('button',{name:'Settings & backup',exact:true}).click();await page.getByRole('heading',{name:'Settings & backup',exact:true}).waitFor();await tabs.getByRole('button',{name:'Ledger',exact:true}).click();
    await tabs.getByRole('link',{name:'Quotes',exact:true}).click();await page.getByRole('heading',{name:'Mechanic quotes',exact:true}).waitFor();assert.equal(await tabs.getByRole('link',{name:'Quotes',exact:true}).getAttribute('aria-current'),'page');
-   for(const route of ['workspace.html','mechanic.html','finance.html','reports.html','scanner.html','tax-planning.html']){
+   for(const route of ['workspace.html','mechanic.html','finance.html','reports.html','insights.html','tax-planning.html']){
      await page.goto(root+route);await tabs.waitFor();assert.equal(await tabs.locator('a').count(),2);assert.equal(await tabs.getByRole('link',{name:'Ledger',exact:true}).getAttribute('href'),'ledger.html?ledger');assert.equal(await tabs.getByRole('link',{name:'Quotes',exact:true}).getAttribute('href'),'quotes.html');
    }
    await tabs.getByRole('link',{name:'Ledger',exact:true}).click();await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
@@ -178,7 +178,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,3);
  }
  if(job==='truck'){
-   await page.goto(root+'trucking.html');await page.locator('#truck-controls .module-nav').waitFor();await checkNav('#truck-controls .module-nav');await checkNav('main .workspace-nav');await button('Trucks & mileage').click();await checkNav('#truck-controls .module-nav');await page.getByLabel('Truck unit name').fill('Fixture 101');await button('Save truck').click();
+   await page.goto(root+'trucking.html');await page.locator('#truck-controls .module-nav').waitFor();await button('Settlements').click();assert.equal(await page.getByRole('link',{name:/Scan settlement/i}).count(),0);await button('New manual settlement').waitFor();await checkNav('#truck-controls .module-nav');await checkNav('main .workspace-nav');await button('Trucks & mileage').click();await checkNav('#truck-controls .module-nav');await page.getByLabel('Truck unit name').fill('Fixture 101');await button('Save truck').click();
    await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();await page.getByLabel('Loaded miles',{exact:true}).fill('100');await page.getByLabel('Deadhead miles',{exact:true}).fill('10');await button('Save mileage').click();
    await page.getByText(/Deletion protected:/).waitFor();await button('Delete truck Fixture 101').click();await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();
    page.once('dialog',d=>d.accept());await button('Remove mileage record').click();await page.getByText(/Deletion protected:/).waitFor({state:'detached'});page.once('dialog',d=>d.accept());await button('Delete truck Fixture 101').click();await page.getByText('No trucks added yet.').waitFor();
@@ -205,15 +205,11 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    for(const name of ['Basic · $4.99 / month','Pro · $9.99 / month'])await page.getByRole('heading',{name,exact:true}).waitFor();
    const trials=button('Start 7-day trial (test mode)');assert.equal(await trials.count(),2);assert(await trials.first().isDisabled());assert(await trials.last().isDisabled());
    for(let i=0;i<2;i++){await button('Load test invoice history').click();await page.getByText('No invoices yet.',{exact:true}).waitFor();}
-   await page.goto(root+'scanner.html');
+   await page.goto(root+'insights.html');await page.getByRole('heading',{name:'Business insights',exact:true}).waitFor();await button('Calculate answer').waitFor();assert.equal(await page.getByRole('button',{name:'Receipt scanner',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Settlement scanner',exact:true}).count(),0);
+   await page.goto(root+'finance.html?tab=ledger');await button('Add transaction').click();
    const original={name:'fixture.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jS7sAAAAASUVORK5CYII=','base64')};
-   await page.getByLabel('Upload original PDF / photo').setInputFiles(original);
-   await page.getByText('Original ready. Review before saving.').waitFor();
-   await page.getByLabel('Vendor',{exact:true}).fill('Fixture Parts');await page.getByLabel('Receipt date').fill(await page.evaluate(()=>Q.today()));
-   await page.getByLabel('Total paid ($)').fill('12.34');await page.getByLabel('Included sales tax', {exact:false}).fill('0');await page.getByLabel('Expense category').fill('Materials');
-   await page.getByLabel('I reviewed the original', {exact:false}).check();page.once('dialog',d=>d.accept());await button('Confirm receipt / save to ledger').click();await page.getByRole('heading',{name:'Scanned receipt history'}).waitFor();await button('Receipt scanner').click();
-   await page.getByLabel('Upload original PDF / photo').setInputFiles(original);await page.getByText('This original is already saved in your workspace').waitFor();
-   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.cents===1234).length,1);
+   await page.getByLabel('Category (custom allowed)').fill('Materials');await page.getByLabel('Amount ($)',{exact:true}).fill('12.34');await page.getByLabel('Add receipts',{exact:false}).setInputFiles(original);await page.getByText('Receipts ready.',{exact:true}).waitFor();await button('Save confirmed transaction').click();await page.getByRole('heading',{name:/Materials/}).waitFor();
+   const manualReceipt=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.cents===1234);assert.equal(manualReceipt.length,1);assert.equal(manualReceipt[0].receipts[0].name,'fixture.png');assert(manualReceipt[0].receipts[0].data.startsWith('data:image/png;base64,'));
    await page.goto(root+'offline.html');const pass='fictional test vault';
    await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await page.getByLabel('Repeat passphrase').fill(pass);await button('Enable offline entry').click();await page.getByText('Offline vault ready').waitFor();await ctx.setOffline(true);
    await page.getByLabel('Category',{exact:true}).fill('Offline tools');await page.getByLabel('Amount ($)').fill('7.89');await button('Save encrypted pending entry').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await button('Lock vault').click();
