@@ -116,3 +116,19 @@ html .card h2{letter-spacing:-.45px}html .card button{white-space:normal;overflo
 html button:disabled{opacity:.55;cursor:not-allowed}
 /* Keep printouts readable and economical regardless of the screen palette. */
 @media print{html{color-scheme:light!important}html body,html:not([data-theme=light]) body,html .card,html:not([data-theme=light]) .card,html article,html:not([data-theme=light]) article{background:white!important;color:black!important;box-shadow:none!important}html :is(h1,h2,h3,p,strong,b,small,a,span,th,td,li,label),html #net,html article .totals,html article .totals b,html article small{color:black!important}html header,html nav,html button{display:none!important}}
+
+/* Public account entry uses EarnKeep brand independently of saved in-app appearance. */
+html[data-brand-entry]{color-scheme:dark}
+.account-entry main{max-width:540px;padding-top:18px}
+.account-entry h1{font-size:clamp(28px,6vw,36px);line-height:1.18;letter-spacing:-.045em}
+.account-entry #guest{padding:24px;border-radius:14px}
+.account-entry #credentials label{gap:6px;margin-bottom:14px;color:#f1f3f1}
+.account-entry #credentials input{display:block;width:100%;min-height:48px;background:#101817;color:#f1f3f1;border-color:#52625b;padding:11px 12px}
+.account-entry .account-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}
+.account-entry .account-actions button,.account-entry .account-google{min-height:48px;margin:0}
+.account-entry .account-google{width:100%;margin-bottom:18px}
+.account-entry #guest details{border-top:1px solid #3f4e49;padding-top:14px}
+.account-entry #notice,.account-entry main>p:last-of-type{color:#bdc9c4}
+.account-entry #guest summary{color:#c0e978;cursor:pointer;min-height:36px}
+.account-entry #guest input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #101817 inset;-webkit-text-fill-color:#f1f3f1;caret-color:#f1f3f1}
+@media(max-width:360px){.account-entry #guest{padding:16px}.account-entry .account-actions{grid-template-columns:1fr}}

@@ -1,0 +1,2 @@
+// Keep the signup call-to-action visually primary when arriving from the public registration link.
+(()=>{const q=new URLSearchParams(location.search),signup=q.has('signup');const login=document.querySelector('button[value="login"]'),create=document.querySelector('button[value="signup"]');if(signup){login?.classList.remove('primary');create?.classList.add('primary')}})();

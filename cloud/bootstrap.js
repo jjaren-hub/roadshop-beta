@@ -34,7 +34,7 @@ function installBusinessTabs(entry){
   // Use the existing Ledger button on the ledger page so its settings view still works.
   const nav=document.querySelector('body > nav')||document.createElement('nav');
   const ledger=entry==='app.js'?document.getElementById('home'):document.createElement('a');
-  if(entry!=='app.js'){ledger.href='./?ledger';ledger.textContent='Ledger';}
+  if(entry!=='app.js'){ledger.href='ledger.html?ledger';ledger.textContent='Ledger';}
   const quote=document.createElement('a');quote.href='quotes.html';quote.textContent='Quotes';
   ledger.classList.add('navlink');quote.className='navlink';
   if(entry==='quotes.js')quote.setAttribute('aria-current','page');
