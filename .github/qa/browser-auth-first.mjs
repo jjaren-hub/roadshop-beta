@@ -108,6 +108,10 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();await page.getByLabel('Loaded miles',{exact:true}).fill('100');await page.getByLabel('Deadhead miles',{exact:true}).fill('10');await button('Save mileage').click();
    await page.getByText(/Deletion protected:/).waitFor();await button('Delete truck Fixture 101').click();await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();
    page.once('dialog',d=>d.accept());await button('Remove mileage record').click();await page.getByText(/Deletion protected:/).waitFor({state:'detached'});page.once('dialog',d=>d.accept());await button('Delete truck Fixture 101').click();await page.getByText('No trucks added yet.').waitFor();
+   const quoteDate=await page.evaluate(()=>Q.today());
+   spaces[0].books['roadshop-quotes-v1']=[{id:'Q-123456789abc',trade:'Trucking',issued:quoteDate,expires:quoteDate,shop:'Fixture Trucking',contact:'fixture@example.invalid',customer:'Fixture customer',vehicle:'',description:'Paid service',tax:500,items:[{label:'Service',kind:'labor',qty:100,cost:0,rate:5000}],paid:{date:quoteDate}}];
+   spaces[0].revision++;
+   await page.goto(root+'trucking.html');await page.getByText('Revenue: $50.00',{exact:true}).waitFor();await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();assert.equal(spaces[0].books['roadshop-ledger-v1'].filter(r=>r.id.startsWith('payment-')).length,0);
  }
  if(job==='general'){
    await page.goto(root+'billing.html');

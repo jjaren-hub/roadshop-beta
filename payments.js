@@ -2,6 +2,7 @@
 // The paid work order is the receipt. Projecting its lines into the ledger
 // lets one local write both close the order and record the payment.
 const WorkPayments = {
+  merge(ledger,orders){return [...new Map([...ledger,...this.rows(orders)].map(r=>[r.id,r])).values()]},
   rows(orders) {
     const result=[];
     for(const q of orders){
