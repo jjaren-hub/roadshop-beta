@@ -6,7 +6,7 @@ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefin
 const uid='11111111-1111-4111-8111-111111111111',wid='22222222-2222-4222-8222-222222222222',user={id:uid,email:'fixture@example.invalid',aud:'authenticated',role:'authenticated',app_metadata:{provider:'email'},user_metadata:{},identities:[],created_at:'2026-01-01T00:00:00Z'};
 const enc=o=>Buffer.from(JSON.stringify(o)).toString('base64url'),token=enc({alg:'HS256'})+'.'+enc({sub:uid,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated'})+'.fixture',session={access_token:token,refresh_token:'fixture-only',expires_in:3600,token_type:'bearer',user};
 for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase operator','Trucking'],['mechanic','Mechanic','Mobile mechanic','Mechanic'],['mechanic','Mechanic','Repair shop','Mechanic'],['general','General independent contractor','','General contractor'],['other','Other self-employed business','','Other business']]){
- const ctx=await browser.newContext({viewport:sub==='Repair shop'||job==='other'?{width:1280,height:820}:{width:390,height:844},colorScheme:sub==='Repair shop'||job==='general'?'dark':'light',serviceWorkers:'block'});let spaces=[],signed=false;const errors=[];
+ const ctx=await browser.newContext({viewport:sub==='Repair shop'||job==='other'?{width:1280,height:820}:{width:390,height:844},colorScheme:sub==='Repair shop'||job==='general'?'dark':'light',serviceWorkers:'block'});let signed=false;const errors=[];
  await ctx.route('https://*.supabase.co/**',r=>r.abort());
  await ctx.route('**/cloud/config.js',r=>r.fulfill({contentType:'application/javascript',body:"window.roadshopCloud={url:'https://fixture.supabase.co',key:'sb_publishable_fixture'}"}));
  await ctx.route('https://fixture.supabase.co/**',async r=>{const req=r.request(),url=new URL(req.url()),method=req.method();let result={},status=200;const raw=req.postData();const data=raw?JSON.parse(raw):{};const headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PATCH,OPTIONS'};
@@ -16,9 +16,9 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  else if(url.pathname.endsWith('/user')){result=signed?user:{message:'Not signed in'};status=signed?200:401}
  else if(url.pathname.endsWith('/logout')){signed=false;result={}}
  else if(url.pathname.endsWith('/roadshop-commercial'))result=data.action==='status'?{enforcement:false,occupations:['truck','mechanic','general','other'],flags:{scanner:true,reports:true,offline:true},isAdmin:false,plans:[{code:'basic',name:'Basic',amount_cents:499},{code:'pro',name:'Pro',amount_cents:999}].map(p=>({...p,interval:'month',capabilities:{workspaces:1,ocr_pages:0,ai_questions:0}})),trialDays:7,trialEligible:true,checkoutEnabled:false,subscription:{status:'none'}}:data.action==='history'?{invoices:[],more:false}:{ok:true};
- else if(url.pathname.endsWith('/workspaces')){if(!signed){status=401;result={message:'Not signed in'}}else if(method==='POST'){const w={id:spaces.length?crypto.randomUUID():wid,owner_id:uid,name:data.name,revision:0,books:{}};spaces.push(w);result={id:w.id}}else if(method==='PATCH'){const w=spaces.find(w=>url.searchParams.get('id')==='eq.'+w.id&&url.searchParams.get('revision')==='eq.'+w.revision);if(w){Object.assign(w,data);result=[{revision:w.revision}]}else result=[]}else{const id=url.searchParams.get('id');if(id){const w=spaces.find(w=>'eq.'+w.id===id);result=req.headers().accept?.includes('object+json')?w||{code:'PGRST116'}:w?[w]:[];if(!w&&req.headers().accept?.includes('object+json'))status=406}else result=spaces.map(w=>({...w,profile_name:w.books['roadshop-profile-v2']?.profile?.business,archived:w.books['roadshop-workspace-archive-v1']||null}))}}
+ else if(url.pathname.endsWith('/workspaces')||url.pathname.endsWith('/roadshop-document-scan')){errors.push('Forbidden financial network request '+url.pathname);status=403;result={message:'Financial data must stay on this device'}}
  await r.fulfill({status,headers,contentType:'application/json',body:JSON.stringify(result)})});
- const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
+ const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
  await page.goto(root+'finance.html');await page.waitForURL('**/account.html');await page.locator('#guest').waitFor();
  await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');if(job==='other'){
    await page.locator('button[value=signup]').click();await page.getByText('Check your email for the verification link.').waitFor();await page.getByText('Need help signing in?').click();
@@ -29,12 +29,12 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.getByLabel('Occupation',{exact:true}).selectOption(label);if(sub)await page.getByLabel('Type of business',{exact:true}).selectOption(sub);await page.getByLabel('Business name',{exact:true}).fill('Fixture '+trade);
  await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Operating costs',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:job==='mechanic'?'Open ledger':'Open dashboard',exact:true}).click();
  if(job==='mechanic'){await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();await page.getByRole('link',{name:'Dashboard',exact:true}).click();}
- await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(spaces[0].books['roadshop-profile-v2'].job,job);assert.equal(spaces[0].books['roadshop-profile-v2'].complete,true);
+ await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal((await localSpaces())[0].books['roadshop-profile-v2'].job,job);assert.equal((await localSpaces())[0].books['roadshop-profile-v2'].complete,true);
  assert.equal((await page.getByRole('link',{name:'Trucking tools',exact:true}).count())>0,job==='truck');assert.equal((await page.getByRole('link',{name:'Mechanic tools',exact:true}).count())>0,job==='mechanic');
  // Opening settings must not hijack a later plain Dashboard link.
  await page.getByRole('button',{name:'Business settings',exact:true}).click();
  await page.getByRole('heading',{name:'Business profile',exact:true}).waitFor();
- assert.equal(spaces[0].books['roadshop-profile-v2'].step,1);
+ assert.equal((await localSpaces())[0].books['roadshop-profile-v2'].step,1);
  await page.getByRole('link',{name:'Open ledger',exact:true}).click();
  await page.getByRole('link',{name:'Dashboard',exact:true}).click();
  await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();
@@ -100,8 +100,8 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await button('Select suggested match').click();assert(await page.getByRole('checkbox',{name:/Fixture rent/}).isChecked());await button('Save match').click();await page.getByText(/Fixture rent · -\$100.00 · Matched/).waitFor();
    page.once('dialog',d=>d.accept());await button('Close statement').click();await button('Reopen statement').waitFor();await page.reload();await button('Fixture checking · '+when.slice(0,7)+' · Closed').click();
    page.once('dialog',d=>d.accept());await button('Reopen statement').click();await button('Close statement').waitFor();
-   const current=spaces[0].books['roadshop-profile-v2'].reconciliations[0];assert(!current.closed);assert.equal(current.lines[0].matches.length,1);assert.equal(current.history.length,5);
-   assert.equal(spaces[0].books['roadshop-ledger-v1'].length,3);
+   const current=(await localSpaces())[0].books['roadshop-profile-v2'].reconciliations[0];assert(!current.closed);assert.equal(current.lines[0].matches.length,1);assert.equal(current.history.length,5);
+   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,3);
  }
  if(job==='truck'){
    await page.goto(root+'trucking.html');await button('Trucks & mileage').click();await page.getByLabel('Truck unit name').fill('Fixture 101');await button('Save truck').click();
@@ -109,9 +109,8 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByText(/Deletion protected:/).waitFor();await button('Delete truck Fixture 101').click();await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();
    page.once('dialog',d=>d.accept());await button('Remove mileage record').click();await page.getByText(/Deletion protected:/).waitFor({state:'detached'});page.once('dialog',d=>d.accept());await button('Delete truck Fixture 101').click();await page.getByText('No trucks added yet.').waitFor();
    const quoteDate=await page.evaluate(()=>Q.today());
-   spaces[0].books['roadshop-quotes-v1']=[{id:'Q-123456789abc',trade:'Trucking',issued:quoteDate,expires:quoteDate,shop:'Fixture Trucking',contact:'fixture@example.invalid',customer:'Fixture customer',vehicle:'',description:'Paid service',tax:500,items:[{label:'Service',kind:'labor',qty:100,cost:0,rate:5000}],paid:{date:quoteDate}}];
-   spaces[0].revision++;
-   await page.goto(root+'trucking.html');await page.getByText('Revenue: $50.00',{exact:true}).waitFor();await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();assert.equal(spaces[0].books['roadshop-ledger-v1'].filter(r=>r.id.startsWith('payment-')).length,0);
+   const seedQuotes=[{id:'Q-123456789abc',trade:'Trucking',issued:quoteDate,expires:quoteDate,shop:'Fixture Trucking',contact:'fixture@example.invalid',customer:'Fixture customer',vehicle:'',description:'Paid service',tax:500,items:[{label:'Service',kind:'labor',qty:100,cost:0,rate:5000}],paid:{date:quoteDate}}];await page.evaluate(async ({owner,quotes})=>{const [w]=await LocalBooks.list(owner);await LocalBooks.write(owner,w.id,w.revision,{...w.books,'roadshop-quotes-v1':quotes})},{owner:uid,quotes:seedQuotes});
+   await page.goto(root+'trucking.html');await page.getByText('Revenue: $50.00',{exact:true}).waitFor();await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.id.startsWith('payment-')).length,0);
  }
  if(job==='general'){
    await page.goto(root+'billing.html');
@@ -126,12 +125,12 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByLabel('Total paid ($)').fill('12.34');await page.getByLabel('Included sales tax', {exact:false}).fill('0');await page.getByLabel('Expense category').fill('Materials');
    await page.getByLabel('I reviewed the original', {exact:false}).check();page.once('dialog',d=>d.accept());await button('Confirm receipt / save to ledger').click();await page.getByRole('heading',{name:'Scanned receipt history'}).waitFor();await button('Receipt scanner').click();
    await page.getByLabel('Upload original PDF / photo').setInputFiles(original);await page.getByText('This original is already saved in your workspace').waitFor();
-   assert.equal(spaces[0].books['roadshop-ledger-v1'].filter(r=>r.cents===1234).length,1);
+   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.cents===1234).length,1);
    await page.goto(root+'offline.html');const pass='fictional test vault';
    await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await page.getByLabel('Repeat passphrase').fill(pass);await button('Enable offline entry').click();await page.getByText('Offline vault ready').waitFor();await ctx.setOffline(true);
    await page.getByLabel('Category',{exact:true}).fill('Offline tools');await page.getByLabel('Amount ($)').fill('7.89');await button('Save encrypted pending entry').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await button('Lock vault').click();
    await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await button('Unlock').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await ctx.setOffline(false);await page.getByText('1 synced; 0 need review').waitFor();
-   assert.equal(spaces[0].books['roadshop-ledger-v1'].filter(r=>r.category==='Offline tools').length,1);
+   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.category==='Offline tools').length,1);
  }
  if(sub==='Mobile mechanic'){
    await page.goto(root+'mechanic.html');await button('Quotes & work orders').click();await button('Add customer').click();await page.getByLabel('Customer name').fill('Fixture Motors');await button('Save customer').click();
@@ -145,7 +144,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByText('Actual parts cost: $20.00',{exact:true}).waitFor();await page.getByLabel('Actual parts expenses reviewed',{exact:false}).check();const previous=await button('Save parts-cost confirmation').elementHandle();await previous.click();await page.waitForFunction(el=>!el.isConnected,previous);
    await page.getByLabel('New status').selectOption('completed');await button('Apply status').click();await button('Issue invoice').click();await button('Mark as Paid').waitFor();
    page.once('dialog',d=>d.accept());await button('Mark as Paid').click();await page.getByText('Status: paid',{exact:true}).waitFor();
-   const jobRows=spaces[0].books['roadshop-ledger-v1'].filter(r=>r.job);assert.equal(jobRows.filter(r=>r.cents===2000).length,1);assert.equal(jobRows.filter(r=>r.cents===2500).length,1);
+   const jobRows=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.job);assert.equal(jobRows.filter(r=>r.cents===2000).length,1);assert.equal(jobRows.filter(r=>r.cents===2500).length,1);
    await button('Quotes & work orders').click();await page.getByText('No jobs in this view yet.').waitFor();await page.getByLabel('Show',{exact:true}).selectOption('history');await page.getByRole('heading',{name:'Fixture Motors · Replace filter'}).waitFor();
    await page.goto(root+'quotes.html');await button('New quick quote').click();
    for(const [key,value] of Object.entries({shop:'Fixture Shop',contact:'fixture@example.invalid',customer:'Fixture Motors',vehicle:'Truck',description:'Quick tire check',markup:'25'}))await page.locator('#'+key).fill(value);
@@ -153,13 +152,13 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByLabel('Show',{exact:true}).selectOption('all');await page.getByRole('heading',{name:'Fixture Motors · Quick tire check'}).waitFor();await page.getByRole('heading',{name:'Fixture Motors · Replace filter'}).waitFor();
    await page.getByLabel('Search jobs').fill('replace');assert.equal(await button('Open estimate').count(),0);await page.getByRole('link',{name:'Open work order'}).click();await page.getByText('Status: paid',{exact:true}).waitFor();
    await button('Quotes & work orders').click();await page.getByRole('link',{name:'Open estimate'}).click();await page.getByRole('heading',{name:'Quote preview'}).waitFor();
-   assert.equal(spaces[0].books['roadshop-ledger-v1'].filter(r=>r.job).length,jobRows.length);
+   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.job).length,jobRows.length);
 
  }
  if(job==='other'){
    await page.goto(root+'account.html?switch=1');await page.getByRole('heading',{name:'Your account'}).waitFor();await page.locator('#business').fill('Second fixture');await button('Create workspace').click();await page.getByRole('heading',{name:'Business profile'}).waitFor();
-   assert.equal(spaces.length,2);assert.equal((spaces[1].books['roadshop-ledger-v1']||[]).length,0);
-   await page.goto(root+'account.html?switch=1');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove Second fixture',exact:true}).click();await page.getByText('Business removed. Its records are saved under Archived businesses.').waitFor();assert(spaces[1].books['roadshop-workspace-archive-v1']);await page.locator('#archive-section summary').click();page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Restore Second fixture',exact:true}).click();await page.getByText('Business restored.').waitFor();assert(!spaces[1].books['roadshop-workspace-archive-v1']);
+   assert.equal((await localSpaces()).length,2);assert.equal(((await localSpaces())[1].books['roadshop-ledger-v1']||[]).length,0);
+   await page.goto(root+'account.html?switch=1');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove Second fixture',exact:true}).click();await page.getByText('Business removed. Its records are saved under Archived businesses.').waitFor();assert((await localSpaces())[1].books['roadshop-workspace-archive-v1']);await page.locator('#archive-section summary').click();page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Restore Second fixture',exact:true}).click();await page.getByText('Business restored.').waitFor();assert(!(await localSpaces())[1].books['roadshop-workspace-archive-v1']);
    await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  }
  await page.goto(root+'admin.html');await page.getByText('Administrator access is required.').waitFor();

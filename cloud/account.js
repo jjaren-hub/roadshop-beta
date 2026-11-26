@@ -34,12 +34,12 @@
     try{
       const verified=check(await auth.getUser());
       if(verified.user?.id!==owner||user?.id!==owner)throw Error('Account changed. Sign in again.');
-      const current=check(await api.from('workspaces').select('id,revision,books').eq('id',space.id).eq('owner_id',owner).single());
+      const current=await LocalBooks.read(owner,space.id);
       if(!current||!current.books||typeof current.books!=='object'||Array.isArray(current.books))throw Error('Business unavailable.');
       const books={...current.books};
       if(archive)books[archiveKey]=new Date().toISOString();else delete books[archiveKey];
       if(user?.id!==owner)throw Error('Account changed. Sign in again.');
-      const saved=check(await api.from('workspaces').update({books,revision:current.revision+1}).eq('id',space.id).eq('owner_id',owner).eq('revision',current.revision).select('id').maybeSingle());
+      const saved=await LocalBooks.write(owner,space.id,current.revision,books);
       if(!saved)throw Error('Business changed on another device. Refresh and retry.');
       if(archive)clearSelection(owner,space.id);
       location.replace('account.html?switch=1&workspace='+ (archive?'removed':'restored'));
@@ -73,7 +73,7 @@
     if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
     $('identity').textContent = user.email;
-    const owner=user.id;const allSpaces = check(await api.from('workspaces').select('id,name,profile_name:books->roadshop-profile-v2->profile->>business,archived:books->>roadshop-workspace-archive-v1').eq('owner_id',owner).order('name'));
+    const owner=user.id;const allSpaces=(await LocalBooks.list(owner)).map(w=>({...w,profile_name:w.books['roadshop-profile-v2']?.profile?.business,archived:w.books[archiveKey]}));
     const spaces=allSpaces.filter(s=>!s.archived),archived=allSpaces.filter(s=>!!s.archived);
     if(version!==displayVersion)return;
     if(!recoveryCallback && !switchMode){
@@ -89,9 +89,9 @@
         const owner=user.id;
         try{
           creatingFirst=(async()=>{
-            const existing=check(await api.from('workspaces').select('id,archived:books->>roadshop-workspace-archive-v1').eq('owner_id',owner).order('name'));
-            const active=existing.find(x=>!x.archived);if(active)return active;
-            return check(await api.from('workspaces').insert({name:'My business'}).select('id').single());
+            const existing=await LocalBooks.list(owner);
+            const active=existing.find(x=>!x.books[archiveKey]);if(active)return active;
+            return LocalBooks.create(owner,'My business');
           })();
           const space=await creatingFirst;
           if(user?.id===owner)openBusiness(space.id);
@@ -135,7 +135,7 @@
   $('create').onsubmit=run(async()=>{
     if(managing||!user)return;const owner=user.id;const name=$('business').value.trim();if(!name)throw Error('Enter a business name.');
     const verified=check(await auth.getUser());if(verified.user?.id!==owner||user?.id!==owner)throw Error('Account changed. Sign in again.');
-    const space=check(await api.from('workspaces').insert({name}).select('id').single());
+    const space=await LocalBooks.create(owner,name);
     if(user?.id===owner)openBusiness(space.id);
   });
   $('logout').onclick=run(async()=>{
