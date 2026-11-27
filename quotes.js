@@ -3,11 +3,10 @@
  const $=id=>document.getElementById(id);
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
  function button(parent,text,action){const b=el('button',text);b.type='button';b.onclick=async()=>{try{await action()}catch(e){if(e.name!=='AbortError')alert(e.message||'Action could not be completed.')}};parent.append(b);return b}
- function download(file){const a=el('a');const url=URL.createObjectURL(file);a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
  async function shareLink(url,title){if(navigator.share)return navigator.share({title,url});try{await navigator.clipboard.writeText(url);alert('Link copied. Paste it in a text or email.')}catch{prompt('Copy this link to send:',url)}}
  const link=(page,data)=>new URL(page,location.href).href.split('#')[0]+'#'+Q.encode(data);
  function preview(parent,q){return Q.renderDocument(parent,Q.document(q))}
- function pdfButton(parent,q){let file;const b=button(parent,'Preparing PDF…',async()=>{if(navigator.canShare?.({files:[file]}))await navigator.share({files:[file],title:'Repair estimate '+q.id});else download(file)});b.disabled=true;Q.pdf(q).then(f=>{file=f;b.textContent='Share / save PDF';b.disabled=false}).catch(()=>{b.textContent='Print / save PDF';b.disabled=false;b.onclick=()=>{window.print()}})}
+ function pdfButton(parent,q){let file;const b=button(parent,'Preparing PDF…',async()=>{if(navigator.canShare?.({files:[file]}))await navigator.share({files:[file],title:'Repair estimate '+q.id});else Q.downloadFile(file)});b.disabled=true;Q.pdf(q).then(f=>{file=f;b.textContent='Share / save PDF';b.disabled=false}).catch(()=>{b.textContent='Print / save PDF';b.disabled=false;b.onclick=()=>{window.print()}})}
  if($('customerView')){
   const root=$('customerView');root.replaceChildren();
   try{const q=Q.validate(Q.decode(location.hash.slice(1)));preview(root,q);const actions=el('div',undefined,'qactions');root.append(actions);pdfButton(actions,q);button(actions,'Print',()=>window.print());
@@ -106,7 +105,7 @@
  }
  $('new').onclick=()=>compose();$('cancel').onclick=list;$('additem').onclick=()=>item();$('addMileage').onclick=()=>item(undefined,'mileage');$('addLabor').onclick=()=>item(undefined,'labor');$('addFee').onclick=()=>item(undefined,'manual');$('form').oninput=calc;
  $('form').onsubmit=async e=>{e.preventDefault();try{const q={trade,id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);await save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
- $('export').onclick=()=>download(new File([JSON.stringify({format:key,quotes:read()})],'earnkeep-quotes.json',{type:'application/json'}));
+ $('export').onclick=()=>Q.downloadFile(new File([JSON.stringify({format:key,quotes:read()})],'earnkeep-quotes.json',{type:'application/json'}));
  $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if((q.trade||'Mechanic')!==trade)throw Error('Quote belongs to a different business type');if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){await BookStore.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
  function approval(){if(location.hash){history.replaceState(null,'',location.pathname+location.search);list();$('status').textContent='Legacy approval links are disabled because they cannot authenticate the customer. Verify the customer independently and record approval manually.';}else {
    const requested=new URLSearchParams(location.search).get('quote');

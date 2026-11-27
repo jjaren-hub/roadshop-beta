@@ -227,6 +227,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByLabel('Actual amount paid ($)').fill('20');await page.getByLabel('Receipt / purchase description').fill('Fictional part receipt');await button('Record / link actual cost').click();
    await page.getByText('Actual parts cost: $20.00',{exact:true}).waitFor();await page.getByLabel('Actual parts expenses reviewed',{exact:false}).check();const previous=await button('Save parts-cost confirmation').elementHandle();await previous.click();await page.waitForFunction(el=>!el.isConnected,previous);
    await page.getByLabel('New status').selectOption('completed');await button('Apply status').click();await button('Issue invoice').click();await button('Mark as Paid').waitFor();
+   const invoiceDownload=page.waitForEvent('download');await button('Download invoice PDF').click();assert.match((await invoiceDownload).suggestedFilename(),/^invoice-.+\.pdf$/);
    page.once('dialog',d=>d.accept());await button('Mark as Paid').click();await page.getByText('Status: paid',{exact:true}).waitFor();
    const jobRows=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.job);assert.equal(jobRows.filter(r=>r.cents===2000).length,1);assert.equal(jobRows.filter(r=>r.cents===2500).length,1);
    await button('Quotes & work orders').click();await page.getByText('No jobs in this view yet.').waitFor();await page.getByLabel('Show',{exact:true}).selectOption('history');await page.getByRole('heading',{name:'Fixture Motors · Replace filter'}).waitFor();

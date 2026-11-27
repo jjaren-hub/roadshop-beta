@@ -62,6 +62,16 @@ const Q = (() => {
     for(let i=0;i<pages.length;i++){canvas=pages[i];ctx=canvas.getContext('2d');rule(752);text('Customer copy · Prepared with EarnKeep',L,760,8,false,muted);text('Page '+(i+1)+' of '+pages.length,R,760,8,false,muted,'right');const img=await doc.embedJpg(canvas.toDataURL('image/jpeg',.94));doc.addPage([W,H]).drawImage(img,{x:0,y:0,width:W,height:H})}
     return new File([await doc.save()],filename,{type:'application/pdf'});
   }
+  function downloadFile(file) {
+    const link = window.document.createElement('a');
+    const url = URL.createObjectURL(file);
+    link.href = url;
+    link.download = file.name;
+    window.document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
   async function pdf(q){return documentPdf(document(q),q.id+'.pdf')}
-  return {dollars,today,amount,publicCopy,validate,total,encode,decode,digest,lines,pdf,document,renderDocument,documentPdf,summary};
+  return {dollars,today,amount,publicCopy,validate,total,encode,decode,digest,lines,pdf,document,renderDocument,documentPdf,downloadFile,summary};
 })();
