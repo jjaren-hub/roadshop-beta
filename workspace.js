@@ -110,6 +110,17 @@ function dashboard(){
   case 'upcoming':if(!q.upcoming.length)el(n,'p','No upcoming bills.');for(const b of q.upcoming.slice(0,5))el(n,'p',b.date+' · '+b.name+' · '+cash(+b.amount));link(n,'Recurring bills','finance.html?tab=bills');break;
   }}
   if(state.job==='truck'){
+    const n=el(content,'section');n.className='card retention-widget';n.dataset.cardId='eia-diesel';el(n,'h2','U.S. weekly diesel price');
+    const grid=el(n,'div');grid.className='retention-metrics';const price=el(el(grid,'p'),'strong'),change=el(grid,'p'),date=el(n,'small');
+    const cacheKey='earnkeep-public-eia-diesel-v1',seed={series:'EMD_EPD2D_PTE_NUS_DPG',week:'2026-11-23',price:5.695,previousWeek:'2026-11-16',previousPrice:5.937};
+    let latest=seed;
+    function valid(v){return v?.series===seed.series&&Finance.day(v.week)&&Finance.day(v.previousWeek)&&v.week<=today&&v.previousWeek<v.week&&[v.price,v.previousPrice].every(x=>typeof x==='number'&&Number.isFinite(x)&&x>0&&x<30)&&(Date.parse(v.week)-Date.parse(v.previousWeek))/86400000>=6&&(Date.parse(v.week)-Date.parse(v.previousWeek))/86400000<=8;}
+    function show(v){price.textContent='USD '+v.price.toFixed(3)+' / gal';const delta=v.price-v.previousPrice;change.textContent=(delta>0?'Up ':delta<0?'Down ':'Unchanged · ')+Math.abs(delta*100).toFixed(1)+'¢ vs previous week';date.textContent='Week of '+v.week+((Date.parse(today)-Date.parse(v.week))/86400000>=7?' · Latest available; check for newer release':'')+' · National retail average, not your actual purchase price.';}
+    try{const saved=JSON.parse(localStorage.getItem(cacheKey)||'null');if(valid(saved)&&saved.week>=latest.week)latest=saved;}catch{}
+    show(latest);link(n,'Source: U.S. Energy Information Administration','https://www.eia.gov/petroleum/gasdiesel/');
+    fetch('https://raw.githubusercontent.com/jjaren-hub/roadshop-beta/main/data/eia-diesel.json',{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}).then(r=>{if(!r.ok)throw Error('Feed unavailable');return r.json()}).then(v=>{if(!valid(v)||v.week<latest.week)throw Error('Invalid or older observation');latest=v;try{localStorage.setItem(cacheKey,JSON.stringify(v))}catch{}show(v);}).catch(()=>{date.textContent+=' · Refresh unavailable; showing saved price.';});
+  }
+  if(state.job==='truck'){
     const n=el(content,'section');n.className='card retention-widget';n.dataset.cardId='fleet-fuel-economy';el(n,'h2','Fleet fuel economy');
     const from=report.current.from,to=report.current.to,fmt=v=>v===null?'Not available':v.toFixed(2)+' MPG',company=Trucking.fuelEconomy(rows,null,from,to);
     el(n,'small',from+' – '+to+' · recorded fuel purchases');
