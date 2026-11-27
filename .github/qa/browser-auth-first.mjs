@@ -255,8 +255,24 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    // Restore the backed-up branding into a separate, fictional workspace with its own quote and no duplicate ledger records.
    await page.goto(root+'backup.html');await page.getByText('Create a complete backup',{exact:true}).waitFor();
    const recovered=await page.evaluate(async ({owner,backup})=>{const saved=(await EarnKeepBackup.decode(backup,owner)).payload.workspaces[0],id=crypto.randomUUID(),profile=saved.books['roadshop-profile-v2'];profile.profile.business='Logo recovery fixture';delete profile.mechanic;const quote={...saved.books['roadshop-quotes-v1'][0],id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12)};const w={...saved,id,name:'Logo recovery fixture',books:{'roadshop-profile-v2':profile,'roadshop-quotes-v1':[quote]}};const count=await LocalBooks.restore(owner,[w]);return {count,id,quote:quote.id,logo:(await LocalBooks.read(owner,id)).books['roadshop-profile-v2'].profile.logo}},{owner:uid,backup:logoBackup});assert.equal(recovered.count,1);assert.equal(recovered.logo,logo64);
-   await page.goto(root+'account.html?switch=1');await button('Logo recovery fixture').click();await page.getByRole('heading',{name:'Logo recovery fixture',exact:true}).waitFor();await page.goto(root+'quotes.html?quote='+recovered.quote);await page.locator('.customer-document .document-logo').waitFor();assert.equal(await page.locator('.customer-document .document-logo').getAttribute('src'),logo64);
-   await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'quotes.html?quote='+quickId);await page.locator('.customer-document').waitFor();assert.equal(await page.locator('.customer-document .document-logo').count(),0);
+    // Account switching opens the Ledger for completed mechanic workspaces, not the Dashboard.
+    const switchMechanic=async (name,id)=>{
+      await page.goto(root+'account.html?switch=1');
+      await Promise.all([page.waitForURL(url=>url.pathname.endsWith('/ledger.html')),button(name).click()]);
+      await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
+      await page.waitForFunction(expected=>{try{return BookStore.id===expected&&!document.body.hasAttribute('data-auth-pending')}catch{return false}},id);
+      assert.deepEqual(await page.evaluate(()=>({id:BookStore.id,owner:BookStore.ownerId,profile:JSON.parse(BookStore.getItem(Planning.key)).profile.business})),{id,owner:uid,profile:name});
+      await page.getByRole('link',{name:'Dashboard',exact:true}).click();
+      await page.getByRole('heading',{name,exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>BookStore.id),id);
+    };
+    await switchMechanic('Logo recovery fixture',recovered.id);
+    await page.goto(root+'quotes.html?quote='+recovered.quote);await page.locator('.customer-document .document-logo').waitFor();assert.equal(await page.evaluate(()=>BookStore.id),recovered.id);assert.equal(await page.locator('.customer-document .document-logo').getAttribute('src'),logo64);await page.locator('.customer-document .document-logo').evaluate(img=>img.decode());
+    await switchMechanic('Fixture '+trade,originalWorkspace.id);
+    await page.goto(root+'quotes.html?quote='+quickId);await page.locator('.customer-document').waitFor();assert.equal(await page.evaluate(()=>BookStore.id),originalWorkspace.id);assert.equal(await page.locator('.customer-document .document-logo').count(),0);
+    assert.equal((await localSpaces()).find(w=>w.id===recovered.id).books['roadshop-profile-v2'].profile.logo,logo64);
+    assert.equal((await localSpaces()).find(w=>w.id===originalWorkspace.id).books['roadshop-profile-v2'].profile.logo,undefined);
+    console.log('PASS restored mechanic logo and workspace isolation');
 
  }
  if(job==='other'){
