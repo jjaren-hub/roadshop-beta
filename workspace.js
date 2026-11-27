@@ -124,8 +124,9 @@ function render(){
   if(step===5 && registry[state.job])return dashboard();
   el(content,'p','Step '+step+' of 5');el(content,'h1',pages[step-1]);
   const form=el(content,'form');form.id='wizard';form.className='qform card';
+  if(state.complete){form.dataset.editSettings='';el(form,'h2',pages[step-1]+' settings');}
   if(step===1)profile(form);if(step===2)bills(form);if(step===3)operating(form);if(step===4)fields(form,state.goals,goals);
-  const actions=el(form,'div');actions.className='actions';
+  const actions=el(form,'div');actions.className='actions';actions.dataset.cardAction='';
   if(step>1)btn(actions,'Back',()=>go(step-1));btn(actions,'Save progress',save);
   if(state.complete)btn(actions,'Return to dashboard',()=>{if(form.reportValidity() && registry[state.job])return go(5);});
   const next=el(actions,'button',step===4?(state.job==='mechanic'&&!state.complete?'Open ledger':'Open dashboard'):'Continue');next.type='submit';next.className='primary';

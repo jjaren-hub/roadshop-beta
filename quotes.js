@@ -102,7 +102,7 @@
    const job=x=>({id:x.id,status:'approved',costs:x.partCosts||[],customerSnapshot:{name:x.customer},vehicleSnapshot:x.vehicle,actualPartsConfirmed:false});
    const p=el('section',undefined,'card');p.append(el('h2','Part sourcing and purchases'),el('p','Inventory or previously owned parts do not create a new expense. Record only purchases actually paid. Quotes and estimates alone never post expenses.'));parent.append(p);
    for(const [index,line] of q.items.entries()){
-     if(line.kind!=='part')continue;const partId=String(index),c=el('section',undefined,'card');c.append(el('h3',line.label));p.append(c);
+     if(line.kind!=='part')continue;const partId=String(index),c=el('section',undefined,'card');c.dataset.cardId=q.id+'-part-'+index;c.append(el('h3',line.label));p.append(c);
      const recorded=(q.partCosts||[]).find(x=>x.partLine===partId);
      if(recorded){c.append(el('p','Purchase recorded · '+Q.dollars(recorded.cents)+' · '+recorded.date));if(!ledger().some(r=>r.id===recorded.ledgerId))c.append(el('p','Linked expense is not in this ledger. Check the original workspace or restore its full backup before recording again.'));continue}
      const source=partSelect(c,line.partSource);

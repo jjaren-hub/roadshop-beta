@@ -11,7 +11,7 @@ const id=()=>crypto.randomUUID();
 const trade=()=>Planning.registry[profile?.job]?.trade||'Other business';
 function el(p,t,s){const n=document.createElement(t);if(s!==undefined)n.textContent=s;p.append(n);return n}
 function button(p,s,fn){const n=el(p,'button',s);n.type='button';n.onclick=async()=>{if(busy)return;try{await fn()}catch(e){(n.closest('dialog')?.querySelector('.entry-feedback')||feedback).textContent=e.message||'Could not complete action.'}};return n}
-function input(p,label,value='',type='text',choices){const w=el(p,'label',label),n=el(w,choices?'select':'input');if(choices)for(const c of choices)n.add(new Option(Array.isArray(c)?c[1]:c,Array.isArray(c)?c[0]:c));else n.type=type;n.value=value??'';return n}
+function input(p,label,value='',type='text',choices){const w=el(p,'label',label),n=el(w,choices?'select':'input');if(choices)for(const c of choices)n.add(new Option(Array.isArray(c)?c[1]:c,Array.isArray(c)?c[0]:c));else n.type=type;n.value=value??'';n.setAttribute('aria-label',label);return n}
 function section(p,title){const n=el(p,'section');n.className='card';el(n,'h2',title);return n}
 function panel(title){view.replaceChildren();el(view,'h2',title);return view}
 async function save(next){if(busy)throw Error('Save in progress');busy=true;try{const checked=validate(next);await BookStore.setItem(key,JSON.stringify(checked));rows=checked;feedback.textContent='Saved.'}finally{busy=false}}

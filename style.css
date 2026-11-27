@@ -251,13 +251,37 @@ html .perdiem-grid>.perdiem-day:focus-visible{outline:2px solid var(--ek-focus);
 
 
 /* Collapsible trucking travel cards: native keyboard/touch disclosure. */
-html #truck-view .truck-collapse{padding:0;overflow:hidden}
-html #truck-view .truck-collapse-heading{cursor:pointer;display:list-item;list-style-position:inside;padding:15px 16px;min-height:44px;box-sizing:border-box;font-size:18px;font-weight:700;line-height:1.4}
-html #truck-view .truck-collapse[open]>.truck-collapse-heading{border-bottom:1px solid var(--ek-nav-border)}
-html #truck-view .truck-collapse-heading:focus-visible{outline-offset:-4px}
-html #truck-view .truck-collapse-body{padding:14px 16px;min-width:0}
+html #truck-view .truck-collapse-body{padding:8px 0;min-width:0}
 html #truck-view .truck-collapse-body label{display:block;min-width:0;margin:0 0 12px;line-height:1.4}
 html #truck-view .truck-collapse-body label>:is(input,select,textarea){display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin:5px 0 0}
 html #truck-view .truck-collapse-body>.perdiem-settings label{margin-bottom:4px}
 html #truck-view .truck-collapse-body>button{display:block;max-width:100%;margin:8px 0 12px}
 html #truck-view .truck-collapse-body details>summary{cursor:pointer;padding:10px 0;font-weight:600}
+
+/* Shared disclosure headers inherit the active workspace theme. */
+html .disclosure {min-width:0;max-width:100%;overflow-wrap:anywhere}
+html .disclosure > .disclosure-heading {margin:0;min-width:0}
+html .disclosure .disclosure-toggle, html details.disclosure > summary.disclosure-heading {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;min-height:44px;margin:0;padding:8px 0;border:0;border-radius:4px;
+  background:transparent;color:inherit;font:inherit;font-weight:700;text-align:start;
+  white-space:normal;overflow-wrap:anywhere;cursor:pointer;box-shadow:none;list-style:none
+}
+html details.disclosure > summary::-webkit-details-marker {display:none}
+html .disclosure-toggle::after, html details.disclosure > summary::after {
+  content:"";flex:0 0 auto;width:8px;height:8px;margin:0 6px;
+  border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg)
+}
+html .disclosure-toggle[aria-expanded=true]::after,html details.disclosure[open] > summary::after {transform:rotate(225deg)}
+html .disclosure :is(.disclosure-toggle,summary):focus-visible {outline:2px solid currentColor;outline-offset:-2px}
+html .disclosure label:has(> :is(select,textarea,input:not([type=checkbox],[type=radio]))) {
+  display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0
+}
+html .disclosure label > :is(select,textarea,input:not([type=checkbox],[type=radio])) {min-width:0;max-width:100%;width:100%}
+@media screen {
+  html .disclosure-closed > :not(.disclosure-heading,.primary,.workspace-nav,.dashboard-nav,.tax-warning,.actions,[role=navigation],[role=alert],[data-card-action]) {display:none!important}
+}
+@media print {
+  html .disclosure-heading > button.disclosure-toggle {display:block!important;color:black}
+  html .disclosure-toggle::after {display:none}
+}

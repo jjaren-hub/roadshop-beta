@@ -53,7 +53,7 @@ function showJobList(parent, quotes, jobs, actions) {
       const archived=['paid','rejected','canceled'].includes(entry.status);
       if(filter.value==='removed'){if(!entry.record.removedAt)continue;}else{if(entry.record.removedAt)continue;if(filter.value!=='all' && (filter.value==='history')!==archived)continue;}
       if(![entry.customer,entry.vehicle,entry.description,entry.reference,entry.status].join(' ').toLowerCase().includes(term))continue;
-      const card=append(list,'section');card.className='card';
+      const card=append(list,'section');card.className='card';card.dataset.cardId=entry.record.id;
       append(card,'h2',[entry.customer,entry.description].filter(Boolean).join(' · '));
       append(card,'p',[entry.quick?'Quick quote':'Work order',entry.record.removedAt?'Archived · '+entry.status:entry.status,entry.vehicle,entry.date].filter(Boolean).join(' · '));
       append(card,'p','Total '+Q.dollars(entry.total)+(entry.due===null?'':' · Balance due '+Q.dollars(entry.due)));
