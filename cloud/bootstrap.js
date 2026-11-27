@@ -30,21 +30,25 @@ BookStore.start().then(async ready=>{
   script.onerror=()=>{window.removeEventListener('error',initializationError);showAuthError(Error('Could not load the workspace. Reload and try again.'));};
   document.body.append(script);
 }).catch(showAuthError);
-function businessShortcut(job){
-  return job==='truck'?{label:'Settlements',href:'trucking.html?tab=settlements',entry:'trucking.js'}:{label:'Quotes',href:'quotes.html',entry:'quotes.js'};
+function businessShortcuts(job){
+  return job==='truck'?[{label:'Add load',href:'trucking.html?tab=calc&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}]:[{label:'Quotes',href:'quotes.html'}];
 }
 function installBusinessTabs(entry,job){
   // Use the existing Ledger button on the ledger page so its settings view still works.
   const nav=document.querySelector('body > nav')||document.createElement('nav');
   const ledger=entry==='app.js'?document.getElementById('home'):document.createElement('a');
   if(entry!=='app.js'){ledger.href='ledger.html?ledger';ledger.textContent='Ledger';}
-  const shortcut=businessShortcut(job),action=document.createElement('a');action.href=shortcut.href;action.textContent=shortcut.label;action.dataset.businessShortcut=job;
-  ledger.classList.add('navlink');action.className='navlink';
-  if(entry===shortcut.entry&&(job!=='truck'||new URLSearchParams(location.search).get('tab')==='settlements'))action.setAttribute('aria-current','page');
+  ledger.classList.add('navlink');
+  const actions=businessShortcuts(job).map(shortcut=>{
+    const action=document.createElement('a');action.href=shortcut.href;action.textContent=shortcut.label;action.className='navlink';
+    if(job!=='truck'&&entry==='quotes.js')action.setAttribute('aria-current','page');
+    return action;
+  });
+  nav.classList.toggle('trucking-tabs',job==='truck');
   const settings=document.getElementById('account');
   if(entry==='app.js' && settings){document.querySelector('.workspace-heading .workspace-nav').append(settings);}
   nav.classList.add('mechanic-tabs','business-tabs');nav.setAttribute('aria-label','Business navigation');
-  nav.replaceChildren(ledger,action);if(!nav.isConnected)document.body.append(nav);
+  nav.replaceChildren(ledger,...actions);if(!nav.isConnected)document.body.append(nav);
   document.body.classList.add('has-mechanic-tabs');
 }
 function showAuthError(error){if(typeof RoadCommercial!=='undefined')RoadCommercial.activity('error');
