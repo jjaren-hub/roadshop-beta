@@ -1,7 +1,8 @@
 name: Refresh EIA weekly diesel
 on:
   schedule:
-    - cron: '23 23 * * 1,2,3'
+    # 10:25 a.m. Eastern in either daylight or standard time; later retry for release delays.
+    - cron: '25 14,15,17 * * 2,3'
   workflow_dispatch:
 permissions:
   contents: write
