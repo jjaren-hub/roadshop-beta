@@ -22,3 +22,6 @@ Additional QA: verify desktop and mobile logo geometry, actual canvas draw dimen
 ## 2026-11-27 — quote button layout (beta)
 - Align quick quote charge actions into a two-column grid, with the mechanic-only shop supply shortcut spanning both columns. Match the existing EarnKeep green controls in light and dark modes, preserve 44px touch targets and keep hidden controls hidden.
 - Group detailed quote add-line and supply actions into matching columns. No pricing, accounting, tax, document or navigation behavior changes. Add browser layout assertions at 320, 390 and 1280px. Refresh offline cache; beta quality gate required.
+
+## 2026-11-27 — customer support cleanup
+- Remove the outdated customer-facing Release notes card from Help & support. Keep help topics, feedback, account deletion requests, support contacts and legal links unchanged. Retain internal development history; bump offline cache.
