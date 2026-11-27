@@ -75,8 +75,8 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
      assert.equal(await tabs.getByRole('link',{name:'Quotes',exact:true}).count(),0);
      assert.deepEqual(await tabs.locator('a, button').allTextContents(),['Ledger','Add load','Add Fuel','Add expense']);
      await tabs.getByRole('link',{name:'Add load',exact:true}).click();
-     await page.getByRole('heading',{name:'Trucking calculators',exact:true}).waitFor();
-     assert.equal(await page.getByLabel('Estimate period',{exact:true}).inputValue(),'trip');
+     await page.getByRole('heading',{name:'Add load',exact:true}).waitFor();
+     await page.locator('#truck-editor').getByRole('button',{name:'Add your first truck',exact:true}).waitFor();
      await tabs.getByRole('link',{name:'Add Fuel',exact:true}).click();
      await page.getByRole('dialog',{name:'Add Fuel',exact:true}).waitFor();
      assert.equal(await page.getByLabel('Category (custom allowed)',{exact:true}).inputValue(),'Diesel');
@@ -222,6 +222,16 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    const quoteDate=await page.evaluate(()=>Q.today());
    const seedQuotes=[{id:'Q-123456789abc',trade:'Trucking',issued:quoteDate,expires:quoteDate,shop:'Fixture Trucking',contact:'fixture@example.invalid',customer:'Fixture customer',vehicle:'',description:'Paid service',tax:500,items:[{label:'Service',kind:'labor',qty:100,cost:0,rate:5000}],paid:{date:quoteDate}}];await page.evaluate(async ({owner,quotes})=>{const [w]=await LocalBooks.list(owner);await LocalBooks.write(owner,w.id,w.revision,{...w.books,'roadshop-quotes-v1':quotes})},{owner:uid,quotes:seedQuotes});
    await page.goto(root+'trucking.html');await page.getByText('Revenue: $50.00',{exact:true}).waitFor();await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();await page.getByLabel('Reporting period',{exact:true}).selectOption('year');assert.equal(await page.getByLabel('From',{exact:true}).inputValue(),(await page.getByLabel('Through',{exact:true}).inputValue()).slice(0,4)+'-01-01');await page.getByRole('heading',{name:'Fuel costs',exact:true}).waitFor();await page.getByRole('heading',{name:'Settlements in this period',exact:true}).waitFor();await page.getByRole('heading',{name:'Per diem working records',exact:true}).waitFor();await page.getByLabel('Reporting period',{exact:true}).selectOption('week');await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.id.startsWith('payment-')).length,0);
+   await button('Trucks & mileage').click();await page.getByLabel('Truck unit name').fill('Load fixture truck');await button('Save truck').click();await page.getByRole('heading',{name:'Load fixture truck',exact:true}).waitFor();
+   await page.getByRole('navigation',{name:'Business navigation'}).getByRole('link',{name:'Add load',exact:true}).click();await page.getByRole('heading',{name:'Add load',exact:true}).waitFor();
+   for(const [label,v] of [['Load number','L-100'],['Pickup city','Salt Lake City'],['Delivery city','Denver'],['Loaded miles','1000'],['Empty miles','100'],['Linehaul rate ($/loaded mile)','1.45'],['Fuel surcharge ($/loaded mile)','0.56']])await page.getByLabel(label,{exact:true}).fill(v);
+   await page.getByText('Total revenue: $2,010.00',{exact:true}).waitFor();const beforeLoad=(await localSpaces())[0].books['roadshop-ledger-v1'].length;
+   await button('Save load').click();await page.getByRole('heading',{name:'Load L-100 · Planned',exact:true}).waitFor();
+   for(const stage of ['Picked up','Delivered']){await button('Open load').click();await page.getByLabel('Load stage',{exact:true}).selectOption(stage);await button('Save load').click();await page.getByRole('heading',{name:'Load L-100 · '+stage,exact:true}).waitFor();}
+   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,beforeLoad);await button('Open load').click();page.once('dialog',d=>d.accept());await button('Mark paid').click();await page.getByRole('heading',{name:'Load L-100 · Paid',exact:true}).waitFor();
+   const loadRows=(await localSpaces())[0].books['roadshop-ledger-v1'];assert.equal(loadRows.length,beforeLoad+2);assert.equal(loadRows.filter(r=>r.ref==='L-100').reduce((n,r)=>n+r.cents,0),201000);
+   await page.goto(root+'trucking.html?tab=loads');await page.getByRole('heading',{name:'Load L-100 · Paid',exact:true}).waitFor();await button('View load').click();assert(await page.getByLabel('Load stage',{exact:true}).isDisabled());assert.equal(await button('Mark paid').count(),0);
+
  }
  if(job==='general'){
    await page.goto(root+'billing.html');
