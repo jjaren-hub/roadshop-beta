@@ -31,3 +31,12 @@ The beta task is complete. No known unresolved regressions from this review. Ver
 Start future beta work from current beta `main`. Reproduce the verification using `.github/workflows/prelaunch-qa.yml`, including the browser suite in `.github/qa/browser-auth-first.mjs`. Use `CHROMIUM_PATH` for an existing Chromium installation. Production promotion requires a separate explicit instruction.
 
 Implementation entry points are `cards.js`, `style.css`, `sw.js`, the HTML entry points and their corresponding workspace scripts. [Open the deployed beta](https://jjaren-hub.github.io/roadshop-beta/)
+
+
+## Subsequent beta work — November 27, 2026 (not yet fully browser-verified)
+
+- Manual-entry simplification removed settlement, receipt, bank CSV, tax and mechanic photo upload controls; business logo and recovery retained.
+- Trucks simplified to compact tap-to-edit list, description/VIN, starting and current odometer. Fuel entry posts separate diesel/DEF expenses tied to truck/load; purchase MPG and weighted fleet MPG feed dashboard and 30-day load estimates. Optional load comments added.
+- Finance initialization syntax error fixed at `33fe850`; subsequent syntax checks passed for eight affected modules. Sample fuel, weighted MPG and rolling fuel estimate calculations passed. Current complete browser/hosted gate still needs verification.
+- EIA weekly national on-highway diesel benchmark: seed week 2026-11-23 ($5.695/gal; prior $5.937), source EIA historical series EMD_EPD2D_PTE_NUS_DPG. Dashboard uses a public read-only JSON feed, last valid local cache, explicit observation date and stale/unavailable notices. `.github/workflows/eia-diesel.yml` checks Mon–Wed UTC; `.github/scripts/update-eia-diesel.py` validates dates and values before publishing. GitHub raw feed avoids dependence on Pages rebuilds from workflow commits. No private financial data is sent. Workflow execution and real browser/network verification remain pending; production unchanged.
+- Next: verify scheduled EIA workflow and feed, run full beta regression including Add Fuel and load lifecycle; complete trucking review and obtain explicit approval before production promotion. If production is promoted, review public feed URL/CSP and preserve a single authoritative feed.
