@@ -97,8 +97,8 @@ function loadRecord(v,existing,today,id){
  if(!loadStages.slice(0,3).includes(v.stage))throw Error('Choose Planned, Picked up or Delivered.');
  if(v.stage!=='Planned'&&v.pickupDate>today||v.stage==='Delivered'&&v.deliveryDate>today)throw Error('Actual pickup or delivery cannot be in the future.');
  if(v.linehaul===''||v.linehaul==null||v.fsc===''||v.fsc==null)throw Error('Enter both rates; use zero if not applicable.');
- const revenue=loadRevenue(v);
- return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue};
+ const revenue=loadRevenue(v),comments=String(v.comments??old?.comments??'').trim();if(comments.length>2000)throw Error('Load comments must be 2,000 characters or fewer.');
+ return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue,...(comments?{comments}:{})};
 }
 function loadPaymentParts(load){const q=loadRevenue(load);return [['Linehaul',q.linehaulCents],['Fuel surcharge',q.fscCents]].filter(([,cents])=>cents>0);}
 function loadPaymentMatches(load,ledger,date,category,cents){
