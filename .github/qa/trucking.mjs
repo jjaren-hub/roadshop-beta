@@ -74,3 +74,20 @@ console.log('PASS load records, stages, revenue, payment date, duplicate prevent
  if(T.fuelEconomy([...rows,undone]).diesel.mpg!==5)throw Error('Reversed fuel purchase included.');
  console.log('PASS weighted fuel economy, independent trucks, date filters and reversals');
 }
+
+
+{
+ const d=T.blank();d.trucks=[{id:'a',name:'A',startingMiles:0},{id:'b',name:'B',startingMiles:0},{id:'c',name:'C',startingMiles:0}];
+ let n=0;const id=()=>'load-fuel-'+(++n);
+ const v={date:'2026-10-29',location:'Fixture',dieselPrice:'4',defPrice:'3',loadId:''};
+ const a=T.fuelPurchase({...v,truckId:'a',odometer:'750',dieselGallons:'100',defGallons:'5'},d,[],v.date,id);
+ const b=T.fuelPurchase({...v,date:'2026-11-27',truckId:'b',odometer:'500',dieselGallons:'100',defGallons:'4'},d,a.added,'2026-11-27',id);
+ const rows=[...a.added,...b.added],p={operating:{truck:{mpg:8}}},load={truck:'A',loaded:'1000',empty:'125'};
+ const q=T.loadFuelEstimate(load,d,rows,p,'2026-11-27');
+ if(q.from!=='2026-10-29'||q.miles!==1125||q.diesel.gallons!==150||q.def.gallons!==7.5||q.diesel.source!=='Truck 30-day average')throw Error('Truck fuel estimate failed.');
+ const fleet=T.loadFuelEstimate({...load,truck:'C'},d,rows,p,'2026-11-27');
+ if(fleet.diesel.mpg!==6.25||fleet.diesel.gallons!==180||fleet.diesel.source!=='Company 30-day average')throw Error('Fleet fallback failed.');
+ const old=T.loadFuelEstimate(load,d,rows,p,'2026-11-28');if(old.diesel.mpg!==5||old.diesel.source!=='Company 30-day average')throw Error('Rolling cutoff failed.');
+ const none=T.loadFuelEstimate(load,d,[],p,'2026-11-27');if(none.diesel.gallons!==140.625||none.def.gallons!==null)throw Error('Configured MPG fallback failed.');
+ console.log('PASS load fuel estimate, 30-day cutoff, loaded + empty miles and labeled fallbacks');
+}
