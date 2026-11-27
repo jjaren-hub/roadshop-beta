@@ -16,7 +16,7 @@ function ledgerRows(){
 }
 window.addEventListener('storage',event=>{if(event.key==='roadshop-quotes-v1')render()});
 window.addEventListener('pageshow',event=>{if(event.persisted)render()});
-function plainDelete(r){return !Finance.linkedForDeletion(r,businessProfile,rows)&&!r.classification&&!r.splits&&!r.audit&&!r.sign&&!r.source&&!r.externalId&&!r.receipts?.length;}
+function plainDelete(r){return Finance.entryMode(r,businessProfile,rows)==='simple'&&!Finance.linkedForDeletion(r,businessProfile,rows)&&!r.classification&&!r.splits&&!r.audit&&!r.sign&&!r.source&&!r.externalId&&!r.receipts?.length;}
 function render(){
   const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
