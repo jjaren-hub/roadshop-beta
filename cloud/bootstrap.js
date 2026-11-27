@@ -31,7 +31,7 @@ BookStore.start().then(async ready=>{
   document.body.append(script);
 }).catch(showAuthError);
 function businessShortcuts(job){
-  return job==='truck'?[{label:'Add load',href:'trucking.html?tab=calc&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}]:[{label:'Quotes',href:'quotes.html'}];
+  return job==='truck'?[{label:'Add load',href:'trucking.html?tab=loads&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}]:[{label:'Quotes',href:'quotes.html'}];
 }
 function installBusinessTabs(entry,job){
   // Use the existing Ledger button on the ledger page so its settings view still works.

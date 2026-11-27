@@ -42,6 +42,7 @@ function linkedForDeletion(r,p={},rows=[]){
  (p?.mechanic?.jobs||[]).some(j=>[...(j.costs||[]),...(j.payments||[])].some(x=>x.ledgerId===id))||
  (p?.scanner?.receipts||[]).some(x=>x.ledgerId===id)||
  (p?.trucking?.settlements||[]).some(x=>x.ledgerIds?.includes(id))||
+ (p?.trucking?.loads||[]).some(x=>x.ledgerIds?.includes(id))||
  (p?.trucking?.leases||[]).some(x=>(x.payments||[]).some(y=>y.ledgerIds?.includes(id)))||
  (p?.trucking?.maintenance||[]).some(x=>x.ledgerIds?.includes(id))||
  (p?.taxPlanning?.assets||[]).some(x=>x.ledgerRef===id)||

@@ -35,3 +35,17 @@ new Function(['core/finance.js','core/planning.js','core/trucking.js','payments.
  const ledger=[make('r','Linehaul','revenue',100000,undefined,'A','s1'),make('fuel','Diesel','expense',20000,undefined,'A','s1'),make('reserve','Maintenance escrow contribution','escrow_out',10000,undefined,'A','s1'),make('rebate','Fuel reimbursement','revenue',5000,undefined,'A','s1'),make('prior','Maintenance escrow contribution','escrow_out',7000,'2026-10-10'),make('later','Maintenance escrow contribution','escrow_out',9000,'2026-12-01'),make('unassigned','DEF','expense',1000,undefined,''),make('other','Linehaul','revenue',2000,undefined,'B')];
  const before=JSON.stringify({data,ledger}),r=T.periodReport(data,ledger,'A','2026-11-01','2026-11-30');eq(r.income,105000);eq(r.expense,20000);eq(r.net,85000);eq(r.cash,75000);eq(r.netFuel,15000);eq(r.escrowOut,10000);eq(r.escrowAsOf.maintenance,17000);eq(r.postedCount,1);eq(r.draftCount,1);eq(r.settlementTotals.statement,75000);eq(r.settlementTotals.linked,75000);eq(r.settlementTotals.issues,0);eq(r.travelTotals.eligible,2.5);eq(r.travelTotals.estimated,16000);eq(r.partialTrips,1);eq(r.miles,1000);eq(r.unassignedCount,1);eq(r.incomeCategories.Linehaul,100000);eq(r.categories.Diesel,20000);eq(T.periodReport(data,ledger,'','2026-11-01','2026-11-30').expense,21000);eq(JSON.stringify({data,ledger}),before);console.log('PASS period presets, scoped reporting, cash, escrow as-of, fuel rebates and per diem');
 }
+
+
+{
+const eq=(a,b)=>{if(a!==b)throw Error('Expected '+b+' got '+a)},reject=fn=>{let b=false;try{fn()}catch{b=true}eq(b,true)};let i=0;const id=()=> 'test-load-row-'+(++i);
+const today='2026-11-27',v={number:'L-100',truck:'A',pickupDate:'2026-11-24',pickupCity:'Salt Lake City',pickupAddress:'',deliveryDate:'2026-11-26',deliveryCity:'Denver',deliveryAddress:'',loaded:'1000',empty:'100',linehaul:'1.45',fsc:'.56',stage:'Planned'};
+const planned=T.loadRecord(v,[],today,'load-a');eq(planned.total,201000);eq(planned.linehaulCents,145000);eq(planned.fscCents,56000);eq(planned.empty,100);
+const picked=T.loadRecord({...planned,stage:'Picked up'},[planned],today,planned.id),delivered=T.loadRecord({...picked,stage:'Delivered'},[picked],today,picked.id);
+reject(()=>T.payLoad(planned,[planned],[],today,today,{},id));reject(()=>T.payLoad(delivered,[delivered],[],'2026-11-25',today,{},id));reject(()=>T.loadRecord({...v,number:' l-100 '},[planned],today,'other'));reject(()=>T.loadRecord({...v,loaded:'-1'},[],today,'bad'));
+const paid=T.payLoad(delivered,[delivered],[],today,today,{},id);eq(paid.record.stage,'Paid');eq(paid.record.paidDate,today);eq(paid.rows.length,2);eq(paid.rows.reduce((s,r)=>s+r.cents,0),201000);eq(paid.rows[0].ref,'L-100');reject(()=>T.payLoad(paid.record,[paid.record],paid.rows,today,today,{},id));reject(()=>T.loadRecord({...v},[paid.record],today,paid.record.id));
+const previous=T.row({id:'existing',date:today,truck:'A',category:'Linehaul',classification:'revenue',cents:145000,ref:'L-100'});
+reject(()=>T.payLoad(delivered,[delivered],[previous],today,today,{},id));const linked=T.payLoad(delivered,[delivered],[previous],today,today,{'Linehaul':'existing'},id);eq(linked.rows.length,2);eq(linked.record.ledgerIds.includes('existing'),true);
+const F=new Function(readFileSync('core/finance.js','utf8')+';return Finance')();eq(F.linkedForDeletion(previous,{trucking:{loads:[linked.record]}},linked.rows),true);
+console.log('PASS load records, stages, revenue, payment date, duplicate prevention and ledger protection');
+}
