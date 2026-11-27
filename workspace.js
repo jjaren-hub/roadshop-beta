@@ -109,6 +109,15 @@ function dashboard(){
   case 'target':el(n,'p',cash(q.target)+' per week · '+cash(q.target*52/12)+' per month');el(n,'small','Planning estimate from configured costs and goals.');break;
   case 'upcoming':if(!q.upcoming.length)el(n,'p','No upcoming bills.');for(const b of q.upcoming.slice(0,5))el(n,'p',b.date+' · '+b.name+' · '+cash(+b.amount));link(n,'Recurring bills','finance.html?tab=bills');break;
   }}
+  if(state.job==='truck'){
+    const n=el(content,'section');n.className='card retention-widget';n.dataset.cardId='fleet-fuel-economy';el(n,'h2','Fleet fuel economy');
+    const from=report.current.from,to=report.current.to,fmt=v=>v===null?'Not available':v.toFixed(2)+' MPG',company=Trucking.fuelEconomy(rows,null,from,to);
+    el(n,'small',from+' – '+to+' · recorded fuel purchases');
+    const grid=el(n,'div');grid.className='retention-metrics';metric(grid,'Company average diesel MPG',fmt(company.diesel.mpg));metric(grid,'Company average DEF MPG',fmt(company.def.mpg));
+    const list=el(n,'details');el(list,'summary','MPG by truck');for(const t of state.trucking?.trucks||[]){const e=Trucking.fuelEconomy(rows,t,from,to),line=el(list,'p');el(line,'strong',t.name+' · ');line.append('Diesel '+fmt(e.diesel.mpg)+' · DEF '+fmt(e.def.mpg));}
+    el(n,'small','Weighted purchase-based averages: matched miles divided by gallons for each fuel type. Missing odometer baselines are excluded. Partial fills and separate DEF stops can affect estimates.');
+    link(n,'Trucking overview','trucking.html');
+  }
   for(const k of pref.order)if(!pref.hidden.includes(k))widget(k);
   const prefs=el(content,'details');el(prefs,'summary','Customize dashboard and navigation');
   const persist=async(next)=>{state.retention={...pref,...next};await save();render();[...content.querySelectorAll('details')].at(-1).open=true;};
