@@ -13,3 +13,8 @@ Additional QA: verify desktop and mobile logo geometry, actual canvas draw dimen
 - Correct the test to wait for the Ledger, verify the active local workspace ID, owner and business profile, then explicitly open the Dashboard. Check both restored and original quote previews and persisted logos; keep workspace isolation assertions intact.
 - User reported beta authentication working after adding production/beta redirect allowlist entries and supplied an Android print-to-PDF preview showing the business logo. This manual check does not replace automated recovery verification.
 - No application or production changes in this commit. Full beta QA rerun required before promotion.
+
+## 2026-11-27 — mechanic shop supply charge shortcut (beta)
+- Add an explicit Add shop supply charge button to detailed mechanic quotes and quick quotes, using the active business's existing Shop supply charge ($/job) setting. Insert one customer charge with quantity one; allow editing and removal; repeated shortcut taps do not duplicate it. Existing records are not changed.
+- Detailed quotes use the existing supplies line type and existing discount, minimum service charge and tax rules (tax checkbox initially off). Quick quotes use the existing manual estimated tax amount and categorize paid supply charges as Shop supplies revenue, not a recorded expense.
+- Include charges through existing customer document/PDF projection and payment calculations. Add browser and quick quote payment regression coverage. Bump offline cache. Production promotion requires passing beta QA.

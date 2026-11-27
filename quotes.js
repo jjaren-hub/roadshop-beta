@@ -15,7 +15,7 @@
  }
  const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
  const trade=Planning.registry[profile?.job]?.trade;if(!trade)throw Error('Complete business setup first.');
- const isMechanic=profile.job==='mechanic';
+ const isMechanic=profile.job==='mechanic';$('addSupplies').hidden=!isMechanic;
  if(!isMechanic){for(const [id,label] of Object.entries({quoteHeading:'Quotes',quoteRates:'Default pricing',quoteMarkupLabel:'Materials markup (%)',quoteHourlyLabel:'Default labor rate ($/hour)',quoteMileageLabel:'Default travel charge ($/mile)',quoteBusinessLabel:'Business name',quoteContactLabel:'Business contact (phone or email)',quoteVehicleLabel:'Project / vehicle reference (optional)',quoteDescriptionLabel:'Work or service description',quotePricingLabel:'Materials markup (%)',quoteLinesHeading:'Materials, labor & fees'})){const n=$(id);if(n)n.textContent=label} $('detailedOrder').hidden=true;$('additem').textContent='Add material';$('new').textContent='New quote';}
  const key='roadshop-quotes-v1';const read=()=>JSON.parse(BookStore.getItem(key)||'[]');
  async function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;await BookStore.setItem(key,JSON.stringify(all))}
@@ -55,19 +55,20 @@
  const field=(div,key)=>div.querySelector('[data-field="'+key+'"]');
  function item(line,kind='part'){
    if($('items').children.length>=12)return alert('A quote can contain up to 12 lines.');
-   if(line)kind=['part','labor','mileage'].includes(line.kind)?line.kind:'manual';
+   if(line)kind=['part','labor','mileage','supplies'].includes(line.kind)?line.kind:'manual';
    const div=el('div',undefined,'qitem'),grid=el('div',undefined,'qgrid');
    div.dataset.kind=kind;
-   div.append(el('h3',{part:isMechanic?'Part':'Material',labor:'Labor',mileage:'Service travel',manual:'Fee / manual line'}[kind]),
-     input('Item or service','label','text',line?.label??(kind==='labor'?'Labor':kind==='mileage'?'Service travel (miles)':''),70),grid);
+   div.append(el('h3',{part:isMechanic?'Part':'Material',labor:'Labor',mileage:'Service travel',manual:'Fee / manual line',supplies:'Shop supply charge'}[kind]),
+     input('Item or service','label','text',line?.label??(kind==='labor'?'Labor':kind==='mileage'?'Service travel (miles)':kind==='supplies'?'Shop supply charge':''),70),grid);
    grid.append(input(kind==='labor'?'Hours':kind==='mileage'?'Billable miles':'Quantity','qty','number',(line?.qty??100)/100,9999));
-   if(kind!=='labor'&&kind!=='mileage')grid.append(input(kind==='part'?(isMechanic?'Price paid per part ($)':'Material unit cost ($)'):'Your unit cost ($) · private','cost','number',line?line.cost/100:(kind==='manual'?0:''),999999));
-   if(kind==='manual')grid.append(input('Customer unit price ($)','rate','number',line?line.rate/100:'',999999));
+   if(kind==='supplies')field(grid,'qty').readOnly=true;
+   if(kind!=='labor'&&kind!=='mileage'&&kind!=='supplies')grid.append(input(kind==='part'?(isMechanic?'Price paid per part ($)':'Material unit cost ($)'):'Your unit cost ($) · private','cost','number',line?line.cost/100:(kind==='manual'?0:''),999999));
+   if(kind==='manual'||kind==='supplies')grid.append(input(kind==='supplies'?'Shop supply charge ($/job)':'Customer unit price ($)','rate','number',line?line.rate/100:kind==='supplies'?(shopRates().supplies||0):'',999999));
    if(kind==='labor'&&line?.cost)div.dataset.laborCost=line.cost;
    div.append(el('p','','line-result'));button(div,'Remove line',()=>{div.remove();calc()});$('items').append(div);calc();
  }
  function readLine(div){
-   const kind=div.dataset.kind,qty=scaled(field(div,'qty').value),cost=kind==='mileage'?0:kind==='labor'?Number(div.dataset.laborCost||0):scaled(field(div,'cost').value);
+   const kind=div.dataset.kind,qty=scaled(field(div,'qty').value),cost=kind==='mileage'||kind==='supplies'?0:kind==='labor'?Number(div.dataset.laborCost||0):scaled(field(div,'cost').value);
    let rate;
    if(kind==='part')rate=Math.round(cost*(10000+scaled($('markup').value))/10000);
    else if(kind==='labor')rate=scaled($('hourly').value);
@@ -103,7 +104,7 @@
      if(navigator.locks)await navigator.locks.request('roadshop-payment',post);else await post();
    });parent.append(panel);
  }
- $('new').onclick=()=>compose();$('cancel').onclick=list;$('additem').onclick=()=>item();$('addMileage').onclick=()=>item(undefined,'mileage');$('addLabor').onclick=()=>item(undefined,'labor');$('addFee').onclick=()=>item(undefined,'manual');$('form').oninput=calc;
+ $('new').onclick=()=>compose();$('cancel').onclick=list;$('additem').onclick=()=>item();$('addMileage').onclick=()=>item(undefined,'mileage');$('addLabor').onclick=()=>item(undefined,'labor');$('addFee').onclick=()=>item(undefined,'manual');$('addSupplies').onclick=()=>{if(!isMechanic)return;const existing=Array.from($('items').children).find(x=>x.dataset.kind==='supplies');if(existing){field(existing,'rate').focus();return}item(undefined,'supplies')};$('form').oninput=calc;
  $('form').onsubmit=async e=>{e.preventDefault();try{const q={trade,id:'Q-'+crypto.randomUUID().replaceAll('-','').slice(0,12),issued:Q.today(),pricing:{mileage:$('mileageRate').value===''?null:Number($('mileageRate').value),markup:$('markup').value===''?null:Number($('markup').value),hourly:$('hourly').value===''?null:Number($('hourly').value)},tax:Math.round(Number($('tax').value)*100),items:inputs()};for(const k of ['shop','contact','customer','vehicle','description','expires'])q[k]=$(k).value.trim();Q.validate(q,true);await save(q);view(q)}catch(e){alert(e.message||'Could not save quote.')}};
  $('export').onclick=()=>Q.downloadFile(new File([JSON.stringify({format:key,quotes:read()})],'earnkeep-quotes.json',{type:'application/json'}));
  $('import').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>6000000)throw Error();const o=JSON.parse(await f.text());if(o.format!==key||!Array.isArray(o.quotes))throw Error();const all=read(),ids=new Set(all.map(q=>q.id));let added=0;for(const q of o.quotes){Q.validate(q,true);if((q.trade||'Mechanic')!==trade)throw Error('Quote belongs to a different business type');if(!ids.has(q.id)){all.push(q);ids.add(q.id);added++}}if(confirm('Import '+added+' new quotes?')){await BookStore.setItem(key,JSON.stringify(all));list()}}catch{alert('Could not import quote backup.')}finally{e.target.value=''}};
