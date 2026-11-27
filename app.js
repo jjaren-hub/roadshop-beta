@@ -16,7 +16,6 @@ function ledgerRows(){
 }
 window.addEventListener('storage',event=>{if(event.key==='roadshop-quotes-v1')render()});
 window.addEventListener('pageshow',event=>{if(event.persisted)render()});
-function plainDelete(r){return Finance.entryMode(r,businessProfile,rows)==='simple'&&!Finance.linkedForDeletion(r,businessProfile,rows)&&!r.classification&&!r.splits&&!r.audit&&!r.sign&&!r.source&&!r.externalId&&!r.receipts?.length;}
 function render(){
   const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
@@ -51,8 +50,8 @@ function edit(r){
   const locked=mode!=='simple'||!!(phone&&!phone.canWrite());
   for(const k of ['trade','type','category','amount','date','ref','note'])$(k).disabled=locked||(k==='trade'&&!!workspaceTrade);
   const quotePayment=!!r&&r.id.startsWith('payment-');
-  $('saveEntry').hidden=locked;$('remove').hidden=!r||!!(phone&&!phone.canWrite())||(mode==='linked'&&!quotePayment);
-  $('remove').textContent=quotePayment?'Delete mistaken payment':r&&!plainDelete(r)?'Remove mistaken entry':'Delete entry';
+  $('saveEntry').hidden=locked;$('remove').hidden=!r||!!(phone&&!phone.canWrite())||(!quotePayment&&!Finance.canDeleteMistake(r,businessProfile,rows));
+  $('remove').textContent=quotePayment?'Delete mistaken payment':r&&Finance.canDeleteMistake(r,businessProfile,rows)&&Finance.deletionIds(r,businessProfile,rows).length===2?'Delete correction pair':'Delete entry';
   $('entryNotice').hidden=!locked;$('entryNotice').textContent=quotePayment?'Payment from a quote. Delete mistaken payment will undo the full receipt, not just this category.':mode==='linked'?'Linked or reversed entry. Correct it in its original module.':mode==='advanced'?'Special accounting details or split amounts. Open the full editor to change this safely.':'Read-only entry.';
   $('fullEntry').hidden=!r||mode==='simple';$('fullEntry').href='finance.html?tab=ledger&entry='+encodeURIComponent(r?.id||'');$('fullEntry').textContent=mode==='linked'?'View full transaction details':'Open full editor';
   $('editor').showModal();
@@ -67,7 +66,7 @@ $('remove').onclick=()=>{if(savingEntry||!healthy||phone&&!phone.canWrite())retu
     const next=WorkPayments.correct(JSON.parse(BookStore.getItem('roadshop-quotes-v1')||'[]'),projected.ref,rows,JSON.parse(BookStore.getItem(Planning.key)||'null'));
     next.forEach(q=>Q.validate(q,true));await BookStore.setItem('roadshop-quotes-v1',JSON.stringify(next));$('editor').close();render();notifyUser('Mistaken payment removed. Quote is unpaid.');
   }catch(e){alert(e.message)}finally{savingEntry=false;$('remove').disabled=false}});return;}
-  const r=rows.find(x=>x.id===editing);if(!r||Finance.linkedForDeletion(r,businessProfile,rows))return notifyUser('This entry cannot be removed here.');const plain=plainDelete(r);ask(plain?'Delete this entry?':'Remove mistaken entry?',plain?'This permanently removes the mistaken entry and updates totals.':'An offset on the original date will preserve the audit history. No money is refunded.',async()=>{try{if(await save(plain?rows.filter(x=>x.id!==r.id):[...rows,Finance.correctMistake(r,businessProfile,rows,crypto.randomUUID())]))$('editor').close()}catch(e){alert(e.message)}})};
+  const r=rows.find(x=>x.id===editing);if(!r||!Finance.canDeleteMistake(r,businessProfile,rows))return notifyUser('This entry cannot be removed here.');const pair=Finance.deletionIds(r,businessProfile,rows).length===2;ask(pair?'Delete correction pair?':'Delete this entry?',pair?'The original and mistaken correction will both be permanently removed. Totals will stay the same.':'This permanently removes the mistaken entry and updates totals. This cannot be undone.',async()=>{if(savingEntry)return;savingEntry=true;try{if(await save(Finance.deleteMistake(r,businessProfile,rows)))$('editor').close()}catch(e){alert(e.message)}finally{savingEntry=false}})};
 $('cancel').onclick=()=>$('confirm').close();$('accept').onclick=()=>{$('confirm').close();pending?.();pending=null};
 $('backup').onclick=()=>{if(phone)return phone.backup();const a=document.createElement('a');a.download='earnkeep-backup.json';a.href=URL.createObjectURL(new Blob([JSON.stringify({format:'roadshop-v1',entries:rows})],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 $('restore').onclick=()=>{if(phone&&!phone.canWrite())return notifyUser('An active subscription is required to import entries.');if(phone)phone.restore();else $('file').click()};
