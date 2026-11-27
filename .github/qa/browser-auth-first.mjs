@@ -70,7 +70,19 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
      await page.goto(root+route);await tabs.waitFor();assert.equal(await tabs.locator('a').count(),2);assert.equal(await tabs.getByRole('link',{name:'Ledger',exact:true}).getAttribute('href'),'ledger.html?ledger');assert.equal(await tabs.getByRole('link',{name:'Quotes',exact:true}).getAttribute('href'),'quotes.html');
    }
    await tabs.getByRole('link',{name:'Ledger',exact:true}).click();await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
- }else{await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();const tabs=page.getByRole('navigation',{name:'Business navigation'});await tabs.waitFor();await tabs.getByRole('link',{name:'Quotes',exact:true}).click();await page.getByRole('heading',{name:'Quotes',exact:true}).waitFor();assert.equal(await page.locator('#detailedOrder').isVisible(),false);}
+ }else{await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();const tabs=page.getByRole('navigation',{name:'Business navigation'});await tabs.waitFor();
+   if(job==='truck'){
+     assert.equal(await tabs.getByRole('link',{name:'Quotes',exact:true}).count(),0);
+     assert.equal(await tabs.getByRole('link',{name:'Settlements',exact:true}).getAttribute('href'),'trucking.html?tab=settlements');
+     await tabs.getByRole('link',{name:'Settlements',exact:true}).click();
+     await page.getByRole('heading',{name:'Settlement management',exact:true}).waitFor();
+     assert.equal(await tabs.getByRole('link',{name:'Settlements',exact:true}).getAttribute('aria-current'),'page');
+     await page.getByRole('button',{name:'Overview',exact:true}).click();await page.getByRole('heading',{name:'Trucking financial overview',exact:true}).waitFor();
+     assert.equal(await tabs.getByRole('link',{name:'Settlements',exact:true}).getAttribute('aria-current'),null);
+     await page.goto(root+'workspace.html?home=1');await page.getByText('All tools & shortcuts',{exact:true}).click();await page.getByRole('link',{name:'Quotes (optional)',exact:true}).click();
+   }else await tabs.getByRole('link',{name:'Quotes',exact:true}).click();
+   await page.getByRole('heading',{name:'Quotes',exact:true}).waitFor();assert.equal(await page.locator('#detailedOrder').isVisible(),false);
+ }
  await page.goto(root+'finance.html?tab=bills');await page.getByRole('button',{name:'Add recurring bill'}).waitFor();
  await page.getByRole('button',{name:'Transactions',exact:true}).click();
  for(const [category,amount] of [['Fixture supplies','40.50'],['Fixture rent','100']]){
