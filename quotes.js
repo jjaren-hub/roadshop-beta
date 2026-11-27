@@ -19,8 +19,8 @@
  if(!isMechanic){for(const [id,label] of Object.entries({quoteHeading:'Quotes',quoteRates:'Default pricing',quoteMarkupLabel:'Materials markup (%)',quoteHourlyLabel:'Default labor rate ($/hour)',quoteMileageLabel:'Default travel charge ($/mile)',quoteBusinessLabel:'Business name',quoteContactLabel:'Business contact (phone or email)',quoteVehicleLabel:'Project / vehicle reference (optional)',quoteDescriptionLabel:'Work or service description',quotePricingLabel:'Materials markup (%)',quoteLinesHeading:'Materials, labor & fees'})){const n=$(id);if(n)n.textContent=label} $('detailedOrder').hidden=true;$('additem').textContent='Add material';$('new').textContent='New quote';}
  const key='roadshop-quotes-v1';const read=()=>JSON.parse(BookStore.getItem(key)||'[]');
  async function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;await BookStore.setItem(key,JSON.stringify(all))}
- async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval)throw Error('Only unpaid, unapproved estimates can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
- function deleteButton(p,q){if(!q.paid&&!q.approval){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
+ async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval||latest.partCosts?.length)throw Error('Only unpaid, unapproved estimates without recorded purchases can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
+ function deleteButton(p,q){if(!q.paid&&!q.approval&&!q.partCosts?.length){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
  function screen(id){for(const x of ['list','compose','view'])$(x).hidden=x!==id;$('status').textContent='';window.scrollTo(0,0)}
  function list(){
    screen('list');const cards=$('cards');cards.replaceChildren();
@@ -53,6 +53,7 @@
  $('remember').onclick=()=>saveRates('markup','hourly');
  const scaled=value=>Math.round(Number(value)*100);
  const field=(div,key)=>div.querySelector('[data-field="'+key+'"]');
+ function partSelect(parent,value=''){const l=el('label','Part source (private)'),select=el('select');select.dataset.field='partSource';for(const [key,text] of [['','Not decided'],['inventory','Already had / inventory'],['purchase','Buy for this job']])select.add(new Option(text,key));select.value=value||'';l.append(select);parent.append(l);return select}
  function item(line,kind='part'){
    if($('items').children.length>=12)return alert('A quote can contain up to 12 lines.');
    if(line)kind=['part','labor','mileage','supplies'].includes(line.kind)?line.kind:'manual';
@@ -64,6 +65,7 @@
    if(kind==='supplies')field(grid,'qty').readOnly=true;
    if(kind!=='labor'&&kind!=='mileage'&&kind!=='supplies')grid.append(input(kind==='part'?(isMechanic?'Price paid per part ($)':'Material unit cost ($)'):'Your unit cost ($) · private','cost','number',line?line.cost/100:(kind==='manual'?0:''),999999));
    if(kind==='manual'||kind==='supplies')grid.append(input(kind==='supplies'?'Shop supply charge ($/job)':'Customer unit price ($)','rate','number',line?line.rate/100:kind==='supplies'?(shopRates().supplies||0):'',999999));
+   if(isMechanic&&kind==='part')partSelect(grid,line?.partSource);
    if(kind==='labor'&&line?.cost)div.dataset.laborCost=line.cost;
    div.append(el('p','','line-result'));button(div,'Remove line',()=>{div.remove();calc()});$('items').append(div);calc();
  }
@@ -74,7 +76,7 @@
    else if(kind==='labor')rate=scaled($('hourly').value);
    else if(kind==='mileage')rate=scaled($('mileageRate').value);
    else rate=scaled(field(div,'rate').value);
-   return {kind,label:field(div,'label').value.trim(),qty,cost,rate};
+   return {kind,label:field(div,'label').value.trim(),qty,cost,rate,...(isMechanic&&kind==='part'?{partSource:field(div,'partSource').value}:{})};
  }
  function inputs(){return Array.from($('items').children,readLine)}
  function calc(){
@@ -87,7 +89,32 @@
    $('calc').textContent='Estimated total '+Q.dollars(Q.total({items,tax:scaled($('tax').value)}));
  }
  function compose(source){screen('compose');$('form').reset();assignRates('markup','hourly',source?.pricing??shopRates());$('editTitle').textContent=source?'Duplicate quote':'New quote';const last=read()[0];for(const k of ['shop','contact','customer','vehicle','description'])$(k).value=source?.[k]??(['shop','contact'].includes(k)?last?.[k]??(k==='shop'?profile.profile.business||'':k==='contact'?profile.profile.phone||profile.profile.email||'':''):'');$('expires').min=Q.today();$('expires').value=Q.today(30);$('tax').value=(source?.tax??0)/100;$('items').replaceChildren();for(const i of source?.items??[undefined])item(i);calc()}
- function view(q){screen('view');const v=$('view');v.replaceChildren();button(v,'All quotes',list);v.append(el('h1','Quote preview'));const logo=isMechanic?JSON.parse(BookStore.getItem(Planning.key)||'null')?.profile?.logo:undefined;const sheet=preview(v,q,logo);const a=el('div',undefined,'qactions');v.append(a);pdfButton(a,q,logo);button(a,'Print estimate',()=>Q.printDocument(sheet));if(!q.paid)button(a,'Record verified customer approval',async()=>{if(q.expires<Q.today())throw Error('Estimate expired; issue a new quote.');const name=prompt('Customer name as verified independently');if(!name?.trim()||name.trim().length>80)return;if(!confirm('Confirm you independently received and verified customer approval for this exact estimate. An old approval link is not proof.'))return;const latest=read().find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval)throw Error('Reload this estimate before changing approval.');latest.approval={approvedBy:name.trim(),date:Q.today(),method:'manual-verified'};await save(latest);view(latest)});button(a,'Duplicate quote',()=>compose(q));deleteButton(a,q);const privateBox=el('div',undefined,'card');privateBox.append(el('h2','Private business information'),el('p','Margin before overhead and tax: '+Q.dollars(Q.total(q)-q.tax-q.items.reduce((n,i)=>n+Q.amount(i.qty,i.cost),0))),el('p',q.paid?'Payment recorded in the business ledger.':q.approval?'Recorded approval from '+q.approval.approvedBy+' on '+q.approval.date+(q.approval.method==='manual-verified'?' (owner verified)':' (legacy, not authenticated)'):'Awaiting independently verified customer approval. Share the PDF, not a public link.'));v.append(privateBox);paymentControls(v,q)}
+ function view(q){screen('view');const v=$('view');v.replaceChildren();button(v,'All quotes',list);v.append(el('h1','Quote preview'));const logo=isMechanic?JSON.parse(BookStore.getItem(Planning.key)||'null')?.profile?.logo:undefined;const sheet=preview(v,q,logo);const a=el('div',undefined,'qactions');v.append(a);pdfButton(a,q,logo);button(a,'Print estimate',()=>Q.printDocument(sheet));if(!q.paid)button(a,'Record verified customer approval',async()=>{if(q.expires<Q.today())throw Error('Estimate expired; issue a new quote.');const name=prompt('Customer name as verified independently');if(!name?.trim()||name.trim().length>80)return;if(!confirm('Confirm you independently received and verified customer approval for this exact estimate. An old approval link is not proof.'))return;const latest=read().find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval)throw Error('Reload this estimate before changing approval.');latest.approval={approvedBy:name.trim(),date:Q.today(),method:'manual-verified'};await save(latest);view(latest)});button(a,'Duplicate quote',()=>compose(q));deleteButton(a,q);const privateBox=el('div',undefined,'card');privateBox.append(el('h2','Private business information'),el('p','Margin before overhead and tax: '+Q.dollars(Q.total(q)-q.tax-q.items.reduce((n,i)=>n+Q.amount(i.qty,i.cost),0))),el('p',q.paid?'Payment recorded in the business ledger.':q.approval?'Recorded approval from '+q.approval.approvedBy+' on '+q.approval.date+(q.approval.method==='manual-verified'?' (owner verified)':' (legacy, not authenticated)'):'Awaiting independently verified customer approval. Share the PDF, not a public link.'));v.append(privateBox);if(isMechanic&&q.items.some(i=>i.kind==='part'))partCosts(v,q);paymentControls(v,q)}
+ function partCosts(parent,q){
+   const M=Mechanic,ledgerKey='roadshop-ledger-v1',ledger=()=>validate(JSON.parse(BookStore.getItem(ledgerKey)||'[]'));
+   const job=x=>({id:x.id,status:'approved',costs:x.partCosts||[],customerSnapshot:{name:x.customer},vehicleSnapshot:x.vehicle,actualPartsConfirmed:false});
+   const p=el('section',undefined,'card');p.append(el('h2','Part sourcing and purchases'),el('p','Inventory or previously owned parts do not create a new expense. Record only purchases actually paid. Quotes and estimates alone never post expenses.'));parent.append(p);
+   for(const [index,line] of q.items.entries()){
+     if(line.kind!=='part')continue;const partId=String(index),c=el('section',undefined,'card');c.append(el('h3',line.label));p.append(c);
+     const recorded=(q.partCosts||[]).find(x=>x.partLine===partId);
+     if(recorded){c.append(el('p','Purchase recorded · '+Q.dollars(recorded.cents)+' · '+recorded.date));if(!ledger().some(r=>r.id===recorded.ledgerId))c.append(el('p','Linked expense is not in this ledger. Check the original workspace or restore its full backup before recording again.'));continue}
+     const source=partSelect(c,line.partSource);
+     button(c,'Save part source',async()=>{const latest=read().find(x=>x.id===q.id);if(!latest||(latest.partCosts||[]).some(x=>x.partLine===partId))throw Error('Reload this quote before changing part source.');latest.items[index].partSource=source.value;await save(latest);view(latest)});
+     if(line.partSource==='inventory'){c.append(el('p','Already owned · no new purchase expense.'));continue}
+     if(line.partSource!=='purchase'){c.append(el('p','Choose a source before recording a purchase.'));continue}
+     const f=(label,type,value)=>{const l=el('label',label),i=el('input');i.type=type;i.value=value;l.append(i);c.append(l);return i};
+     const date=f('Part purchase date','date',Q.today());date.max=Q.today();
+     const amount=f('Actual part purchase total ($)','number',(Q.amount(line.qty,line.cost)/100).toFixed(2));amount.min='0.01';amount.step='0.01';
+     const note=f('Part receipt / description','text',line.label),method=f('Part payment method','text','');
+     const l=el('label','Match existing part expense'),link=el('select');for(const [key,text] of M.partLinks(job(q),ledger()))link.add(new Option(text,key));l.append(link);c.append(l);
+     const b=button(c,'Record part purchase',async()=>{b.disabled=true;try{
+       if(!date.value||date.value>Q.today())throw Error('Enter the actual purchase date.');if(!amount.reportValidity())return;
+       const cents=M.money(amount.value);if(!confirm('Record or link '+Q.dollars(cents)+' actually paid for '+line.label+'?'))return;
+       const post=async()=>{const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.items[index]?.kind!=='part')throw Error('Reload this estimate.');const a=M.partPurchase(job(latest),{id:partId,source:latest.items[index].partSource},{date:date.value,amount:amount.value,note:note.value,method:method.value,link:link.value},ledger(),()=>crypto.randomUUID());latest.partCosts=a.job.costs;Q.validate(latest,true);validate(a.rows);await BookStore.setItems({[key]:JSON.stringify(all),[ledgerKey]:JSON.stringify(a.rows)});view(latest)};
+       if(navigator.locks)await navigator.locks.request('roadshop-part-purchase',post);else await post();
+     }finally{b.disabled=false}});
+   }
+ }
  function paymentControls(parent,q){
    if(q.paid){parent.append(el('p','Paid in full on '+q.paid.date));return}
    const panel=el('div',undefined,'card');panel.append(el('h2','Payment'));
