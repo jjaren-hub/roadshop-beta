@@ -107,13 +107,13 @@ const h=card(p,'Historical actual payments');for(const x of l.payments)el(h,'p',
 function maintenance(){list('Maintenance and escrow');const balances=T.escrow(rows,truck);metric(view,'Maintenance escrow',usd(balances.maintenance));metric(view,'Tire escrow',usd(balances.tire));const e=card(view,'Record escrow movement');const ef={truck:truckInput(e),date:input(e,'Date',today(),'date'),account:input(e,'Escrow account','maintenance','text',['maintenance','tire']),direction:input(e,'Movement','contribution','text',['contribution','release']),amount:input(e,'Amount ($)'),ref:input(e,'Reference / note')};button(e,'Post escrow movement',async()=>{const v=vals(ef),n=T.money(v.amount);mustTruck(v.truck);T.requireDate(v.date);if(v.date>today())throw Error('Actual record cannot be dated in the future.');if(!F.safe(n))throw Error('Enter amount.');if(v.direction==='release'&&T.escrow(rows,v.truck)[v.account]<n)throw Error('Insufficient recorded escrow.');if(!confirm('Post transfer? Do not enter deductions already included in a settlement.'))return;const r=T.row({id:id(),date:v.date,truck:v.truck,category:(v.account==='tire'?'Tire':'Maintenance')+' escrow '+v.direction,classification:v.direction==='release'?'escrow_in':'escrow_out',cents:n,ref:v.ref,source:'trucking-escrow'});if(F.duplicate(r,rows))throw Error('Matching escrow transaction already exists.');await save(data,[...rows,r]);render()});
 const p=card(view,'Maintenance / repair record');const f={truck:truckInput(p),date:input(p,'Service date',today(),'date'),kind:input(p,'Type','Repair','text',['Repair','Oil change','Tires','Inspection','Other service','Downtime']),amount:input(p,'Cost ($)','0'),funding:input(p,'Funding / posting','history','text',[['history','History only (already recorded or no cost)'],['cash','Post cash expense'],['maintenance','Post expense from maintenance escrow'],['tire','Post expense from tire escrow']]),odometer:input(p,'Odometer','0','number'),next:input(p,'Next service / reminder date','','date'),nextOdometer:input(p,'Next service odometer','0','number'),downtime:input(p,'Downtime days','0','number'),note:input(p,'Service details / invoice reference')};button(p,'Save maintenance record',async()=>{const v=vals(f);mustTruck(v.truck);T.requireDate(v.date);if(v.date>today())throw Error('Actual record cannot be dated in the future.');if(v.next)T.requireDate(v.next);for(const k of ['odometer','nextOdometer','downtime'])v[k]=T.num(v[k]);const m={...v,id:id()};if(data.maintenance.some(x=>x.truck===m.truck&&x.date===m.date&&x.kind===m.kind&&x.note===m.note&&T.money(x.amount)===T.money(m.amount)))throw Error('Matching maintenance record already exists.');let extra=[];if(v.funding!=='history'){if(!confirm('Post this repair only if it has NOT already been recorded in the ledger or a settlement.'))return;extra=T.repairRows(m,rows,id);if(extra.some(r=>F.duplicate(r,rows)))throw Error('Matching repair transaction exists. Choose history only.');}else T.money(v.amount);await save({...data,maintenance:[...data.maintenance,{...m,ledgerIds:extra.map(r=>r.id)}]},[...rows,...extra]);render()});
 const reminder=card(view,'Maintenance reminders and history');for(const m of data.maintenance.filter(own).slice().reverse()){const current=Math.max(m.odometer||0,...data.mileage.filter(x=>x.truck===m.truck).map(x=>x.odometer||0));el(reminder,'p',m.date+' · '+m.truck+' · '+m.kind+' · '+usd(T.money(m.amount))+' · '+m.downtime+' days downtime · '+m.note);if(m.next||m.nextOdometer)el(reminder,'p','Next: '+(m.next||'')+' '+(m.nextOdometer?m.nextOdometer+' mi':'')+((m.next&&m.next<=today())||(m.nextOdometer&&current>=m.nextOdometer)?' · DUE':'') );}}
-let perDiemMonth=today().slice(0,7),perDiemTruck='',perDiemRate='80',perDiemDeduct='80',perDiemNote='';
+let perDiemMonth=today().slice(0,7),perDiemTruck=null,perDiemRate='80',perDiemDeduct='80',perDiemNote='';
 function perDiemCalendar(p){
  el(p,'p','Tap once for a full day, again for a partial day (75%), and a third time to clear. Each change saves to this business.');
  el(p,'small','Only mark eligible overnight business travel. Verify the rate and deductible percentage for your situation. Calendar entries are working estimates, not automatic ledger expenses.');
  const settings=el(p,'div');settings.className='perdiem-settings';
- const selected=truckInput(settings,truck||perDiemTruck);
- const daily=input(settings,'Daily rate ($)',perDiemRate,'number'),deduct=input(settings,'Deductible percentage',perDiemDeduct,'number'),notes=input(settings,'Tax home / supporting notes',perDiemNote);
+ const selected=input(settings,'Truck (optional)',truck||(perDiemTruck??data.trucks[0]?.name??''),'text',[['','Unassigned / business travel'],...data.trucks.map(t=>t.name)]);
+ const daily=input(settings,'Daily rate ($)',perDiemRate,'number'),deduct=input(settings,'Deductible percentage',perDiemDeduct,'number'),notes=input(settings,'Tax home / supporting notes (optional)',perDiemNote);
  daily.oninput=()=>{perDiemRate=value(daily)};deduct.oninput=()=>{perDiemDeduct=value(deduct)};notes.oninput=()=>{perDiemNote=value(notes)};
  const toolbar=el(p,'div');toolbar.className='perdiem-toolbar';
  const shiftMonth=n=>{if(n>0&&perDiemMonth>=today().slice(0,7))return;const [y,m]=perDiemMonth.split('-').map(Number);perDiemMonth=new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,7);draw()};
@@ -122,8 +122,9 @@ function perDiemCalendar(p){
  const next=button(toolbar,'›',()=>shiftMonth(1));next.setAttribute('aria-label','Next month');
  button(p,'Current month',()=>{perDiemMonth=today().slice(0,7);draw()});
  const grid=el(p,'div');grid.className='perdiem-grid';
+ const notice=el(p,'p');notice.setAttribute('role','status');notice.className='perdiem-notice';
  const totals=el(p,'div');totals.setAttribute('aria-live','polite');
- el(p,'small','✓ Full · ¾ Partial · — Unmarked · • Existing travel record (protected).');
+ el(p,'small','✓ Full · ¾ Partial · — Unmarked · • Existing travel record (protected). Future dates cannot be marked.');
  const legacy=el(p,'details');el(legacy,'summary','Existing travel records and date-range entry');
  const oldList=el(legacy,'div');
  function draw(){
@@ -133,34 +134,36 @@ function perDiemCalendar(p){
   for(const name of ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']){const e=el(grid,'span',name);e.className='perdiem-weekday'}
   for(let j=0;j<stamp.getUTCDay();j++)el(grid,'span');
   const taxTravel=profile.taxPlanning?.travel||[];
-  const monthRecords=data.perdiem.filter(x=>x.depart>=first&&x.return<=last&&(!selected.value||x.truck===selected.value));
+  const monthRecords=data.perdiem.filter(x=>x.depart>=first&&x.return<=last&&((x.truck||'')===selected.value));
   let full=0,partial=0,equivalent=0,estimate=0;
   for(let day=1;day<=Number(last.slice(-2));day++){
    const date=month+'-'+String(day).padStart(2,'0');
    const overlaps=data.perdiem.filter(x=>x.depart<=date&&x.return>=date);
    const taxOverlap=taxTravel.some(x=>x.depart<=date&&x.return>=date);
    const record=overlaps.length===1&&overlaps[0].calendarDay===true&&overlaps[0].depart===date&&overlaps[0].return===date?overlaps[0]:null;
-   const editable=record&&record.truck===selected.value&&!taxOverlap;
+   const editable=record&&(record.truck||'')===selected.value&&!taxOverlap;
    const locked=taxOverlap||(overlaps.length>0&&!editable);
    const mode=locked?'locked':record?(Number(record.partial)===1?'full':'partial'):'empty';
    const label=mode==='full'?'Full day':mode==='partial'?'Partial day':mode==='locked'?'Existing travel record':'Unmarked';
    const b=button(grid,'',async()=>{
-    const unit=mustTruck(value(selected));let records=data.perdiem;
+    notice.textContent='';try{
+    const unit=value(selected);if(unit)mustTruck(unit);let records=data.perdiem;
     if(editable&&mode==='partial'){records=records.filter(x=>x.id!==record.id)}
     else{
-     const v=editable?{...record,partial:'0.75'}:{truck:unit,depart:date,return:date,home:'0',partial:'1',rate:value(daily),deduct:value(deduct),note:requireText(value(notes),'tax home or supporting notes'),id:id(),calendarDay:true};
+     const v=editable?{...record,partial:'0.75'}:{truck:unit,depart:date,return:date,home:'0',partial:'1',rate:value(daily),deduct:value(deduct),note:value(notes),id:id(),calendarDay:true};
      if(!editable){if(!v.rate||T.money(v.rate)<=0)throw Error('Enter a verified positive daily rate.');if(!v.deduct)throw Error('Enter the deductible percentage.');}
      const q=T.travel(v);records=replaceRecord(records,{...v,...q});
     }
-    await save({...data,perdiem:records});draw();grid.querySelector('[data-date="'+date+'"]')?.focus();
+    await save({...data,perdiem:records});draw();notice.textContent=date+': '+(mode==='empty'?'Full day saved.':mode==='full'?'Partial day saved.':'Day cleared.');grid.querySelector('[data-date="'+date+'"]')?.focus();
+    }catch(e){notice.textContent=e.message||'Unable to save this day.';throw e;}
    });
-   b.className='perdiem-day perdiem-'+mode;b.dataset.date=date;b.setAttribute('aria-label',date+', '+label);b.disabled=locked||date>today()||!selected.value;
+   b.className='perdiem-day perdiem-'+mode;b.dataset.date=date;b.setAttribute('aria-label',date+', '+label);b.disabled=date>today();if(locked){b.setAttribute('aria-disabled','true');b.onclick=()=>{notice.textContent=taxOverlap?'This date is already recorded in Tax Planning.':'This date belongs to an existing travel record or another truck. Select the matching truck or review the existing record.';};}
    el(b,'span',String(day));el(b,'small',mode==='full'?'✓':mode==='partial'?'¾':mode==='locked'?'•':'—');
    if(editable){if(mode==='full')full++;else partial++;}
   }
   for(const x of monthRecords){const q=T.travel(x);equivalent+=q.eligible;estimate+=q.estimated;}
   metric(totals,'Calendar full days',full);metric(totals,'Calendar partial days',partial);metric(totals,'Equivalent eligible days (complete monthly records)',equivalent);metric(totals,'Estimated deduction (complete monthly records)',usd(estimate));
-  if(data.perdiem.some(x=>(!selected.value||x.truck===selected.value)&&x.depart<=last&&x.return>=first&&(x.depart<first||x.return>last)))el(totals,'small','Existing trips spanning months are excluded from monthly totals; use a report range covering the complete trip.');
+  if(data.perdiem.some(x=>((x.truck||'')===selected.value)&&x.depart<=last&&x.return>=first&&(x.depart<first||x.return>last)))el(totals,'small','Existing trips spanning months are excluded from monthly totals; use a report range covering the complete trip.');
   for(const x of data.perdiem.filter(x=>!x.calendarDay&&own(x)))el(oldList,'p',x.depart+' to '+x.return+' · home days '+x.home+' · '+x.eligible+' eligible equivalent days · estimate '+usd(x.estimated)+' · '+x.note);
  }
  selected.onchange=()=>{perDiemTruck=selected.value;draw()};draw();
