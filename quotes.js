@@ -19,8 +19,8 @@
  if(!isMechanic){for(const [id,label] of Object.entries({quoteHeading:'Quotes',quoteRates:'Default pricing',quoteMarkupLabel:'Materials markup (%)',quoteHourlyLabel:'Default labor rate ($/hour)',quoteMileageLabel:'Default travel charge ($/mile)',quoteBusinessLabel:'Business name',quoteContactLabel:'Business contact (phone or email)',quoteVehicleLabel:'Project / vehicle reference (optional)',quoteDescriptionLabel:'Work or service description',quotePricingLabel:'Materials markup (%)',quoteLinesHeading:'Materials, labor & fees'})){const n=$(id);if(n)n.textContent=label} $('detailedOrder').hidden=true;$('additem').textContent='Add material';$('new').textContent='New quote';}
  const key='roadshop-quotes-v1';const read=()=>JSON.parse(BookStore.getItem(key)||'[]');
  async function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;await BookStore.setItem(key,JSON.stringify(all))}
- async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval||latest.partCosts?.length)throw Error('Only unpaid, unapproved estimates without recorded purchases can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
- function deleteButton(p,q){if(!q.paid&&!q.approval&&!q.partCosts?.length){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
+ async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval||latest.partCosts?.length||latest.paymentCorrections?.length)throw Error('Only unpaid, unapproved estimates without purchase or payment history can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
+ function deleteButton(p,q){if(!q.paid&&!q.approval&&!q.partCosts?.length&&!q.paymentCorrections?.length){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
  function screen(id){for(const x of ['list','compose','view'])$(x).hidden=x!==id;$('status').textContent='';window.scrollTo(0,0)}
  function list(){
    screen('list');const cards=$('cards');cards.replaceChildren();
@@ -116,7 +116,10 @@
    }
  }
  function paymentControls(parent,q){
-   if(q.paid){parent.append(el('p','Paid in full on '+q.paid.date));return}
+   if(q.paymentCorrections?.length){const history=el('details');history.append(el('summary','Payment correction history'));for(const c of q.paymentCorrections)history.append(el('p',Q.dollars(c.cents)+' recorded '+c.date+'; corrected '+c.at.slice(0,10)+' (no refund)'));parent.append(history)}
+   if(q.paid){parent.append(el('p','Paid in full on '+q.paid.date));const b=button(parent,'Delete mistaken payment',async()=>{if(!confirm(WorkPayments.correctionMessage))return;b.disabled=true;try{const post=async()=>{
+     const next=WorkPayments.correct(read(),q.id,JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]'),JSON.parse(BookStore.getItem(Planning.key)||'null'));next.forEach(x=>Q.validate(x,true));await BookStore.setItem(key,JSON.stringify(next));view(next.find(x=>x.id===q.id));$('status').textContent='Mistaken payment removed. Quote is unpaid.';
+   };if(navigator.locks)await navigator.locks.request('roadshop-payment',post);else await post()}finally{b.disabled=false}});b.className='danger-action';return}
    const panel=el('div',undefined,'card');panel.append(el('h2','Payment'));
    const label=el('label','Date received '),date=el('input');date.type='date';date.required=true;date.value=date.max=Q.today();label.append(date);panel.append(label);
    button(panel,'Mark paid',async()=>{

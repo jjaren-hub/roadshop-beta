@@ -43,6 +43,7 @@ const Q = (() => {
     if(privateFields){for(const i of q.items)if(i.partSource!==undefined&&(i.kind!=='part'||!['','inventory','purchase'].includes(i.partSource)))throw Error('Invalid part source.');if(q.partCosts!==undefined){if(!Array.isArray(q.partCosts)||q.partCosts.length>q.items.length||new Set(q.partCosts.map(c=>c?.partLine)).size!==q.partCosts.length||new Set(q.partCosts.map(c=>c?.ledgerId)).size!==q.partCosts.length||q.partCosts.some(c=>!c||!str(c.id,180)||!str(c.ledgerId,80)||!str(c.partLine,3)||!/^\d+$/.test(c.partLine)||q.items[Number(c.partLine)]?.kind!=='part'||q.items[Number(c.partLine)]?.partSource!=='purchase'||c.category!=='Parts purchased'||!integer(c.cents,9999999999,1)||!date(c.date)||!str(c.note,180,true)))throw Error('Invalid recorded part purchase.');}}
     if(q.trade!==undefined&&!['Mechanic','Trucking','General contractor','Other business'].includes(q.trade))throw Error('Invalid quote business type.');
     if(q.expires<q.issued)throw Error('Estimate expiry precedes issue date.');
+    if(privateFields&&q.paymentCorrections!==undefined&&(!Array.isArray(q.paymentCorrections)||q.paymentCorrections.length>1000||q.paymentCorrections.some(c=>!c||!date(c.date)||!integer(c.cents,Number.MAX_SAFE_INTEGER,1)||!str(c.at,40)||!Number.isFinite(Date.parse(c.at)))))throw Error('Invalid payment correction history.');
     if(privateFields&&q.paid&&(!date(q.paid.date)||q.paid.date>today()||total(q)<=0))throw Error('Invalid paid estimate date or total.');
     return q;
   }
