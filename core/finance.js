@@ -54,5 +54,24 @@ function correctMistake(r,p,rows,id){
  if(linkedForDeletion(r,p,rows))throw Error('This transaction is linked or already reversed. Correct it in its original module.');
  return {...reverse(r,r.date,id),note:'Correction of mistaken entry '+r.id,audit:audit({},'entry correction',r.id+' — recorded in error; no actual refund')};
 }
-return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,nextOccurrence,estimate,annual,billId,billKey,paid,csvParse,csvCell,linkedForDeletion,entryMode,editSimple,correctMistake};
+// Permanent deletion is for mistaken, unlinked records only. A legacy
+// mistake correction may be deleted only together with its original.
+function deletionIds(r,p,rows){
+ const current=rows.find(x=>x.id===r.id);if(!current)throw Error('Entry no longer exists.');
+ const original=current.sign===-1?rows.find(x=>x.id===current.reversalOf):current;
+ if(!original||original.sign===-1||original.reversalOf)throw Error('Original entry unavailable.');
+ const offsets=rows.filter(x=>x.reversalOf===original.id);
+ if(offsets.length){
+  const x=offsets[0];
+  if(offsets.length!==1||x.sign!==-1||x.date!==original.date||x.cents!==original.cents||x.category!==original.category||kind(x)!==kind(original)||x.note!=='Correction of mistaken entry '+original.id||!x.audit?.some(a=>a.action==='entry correction')||JSON.stringify(lines(x))!==JSON.stringify(lines(original)))throw Error('Actual reversals must remain in the ledger.');
+  const remaining=rows.filter(y=>y.id!==x.id);
+  if(linkedForDeletion(original,p,remaining)||linkedForDeletion({...x,sign:1,reversalOf:undefined},p,remaining))throw Error('Linked entries cannot be deleted here.');
+  return [original.id,x.id];
+ }
+ if(current.id!==original.id||linkedForDeletion(original,p,rows))throw Error('Linked or reversed entries cannot be deleted here.');
+ return [original.id];
+}
+function canDeleteMistake(r,p,rows){try{deletionIds(r,p,rows);return true}catch{return false}}
+function deleteMistake(r,p,rows){const ids=new Set(deletionIds(r,p,rows));return rows.filter(x=>!ids.has(x.id))}
+return {classes,schedules,day,cents,safe,kind,lines,check,total,fingerprint,duplicate,audit,reverse,occurrence,occurrences,nextOccurrence,estimate,annual,billId,billKey,paid,csvParse,csvCell,linkedForDeletion,entryMode,editSimple,correctMistake,deletionIds,canDeleteMistake,deleteMistake};
 })();
