@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
 const T=Trucking,F=Finance, key=Planning.key,ledgerKey='roadshop-ledger-v1',profile=JSON.parse(BookStore.getItem(key)),view=document.getElementById('truck-view'),controls=document.getElementById('truck-controls'),feedback=document.getElementById('truck-feedback');
-let data=T.state(profile),rows=validate(JSON.parse(BookStore.getItem(ledgerKey)||'[]')),tab='overview',truck='',busy=false,overviewRange=null,overviewPreset='week';
+let data=T.state(profile),rows=validate(JSON.parse(BookStore.getItem(ledgerKey)||'[]')),tab=new URLSearchParams(location.search).get('tab')==='settlements'?'settlements':'overview',truck='',busy=false,overviewRange=null,overviewPreset='week';
 const actualRows=()=>WorkPayments.merge(rows,JSON.parse(BookStore.getItem('roadshop-quotes-v1')||'[]'));
 const id=()=>crypto.randomUUID(),today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')},addDays=(d,n)=>new Date(Date.parse(d)+86400000*n).toISOString().slice(0,10),usd=n=>n===null?'Not available':(n/100).toLocaleString('en-US',{style:'currency',currency:'USD'}),rate=n=>n===null?'Not available':usd(n*100),dollars=n=>(n/100).toFixed(2);
 function el(p,t,txt){const n=document.createElement(t);if(txt!==undefined)n.textContent=txt;p.append(n);return n}
@@ -23,7 +23,7 @@ function replaceRecord(list,r){return list.some(x=>x.id===r.id)?list.map(x=>x.id
 function dates(p){let d=today(),start=addDays(d,-((new Date(d+'T00:00:00Z').getUTCDay()+6)%7));return {from:input(p,'From',start,'date'),to:input(p,'Through',addDays(start,6),'date')}}
 function bounds(f){const from=T.requireDate(value(f.from)),to=T.requireDate(value(f.to));if(to<from)throw Error('End must follow start.');return {from,to}}
 function renderControls(){controls.replaceChildren();const f=input(controls,'Filter by truck',truck,'text',[['','All trucks (including unassigned ledger)'],...data.trucks.map(t=>t.name)]);f.onchange=()=>{truck=f.value;render()};const n=el(controls,'div');n.className='module-nav';n.setAttribute('role','navigation');n.setAttribute('aria-label','Trucking tools');for(const [k,l] of [['overview','Overview'],['settlements','Settlements'],['calc','Calculators'],['leases','Lease & financing'],['maintenance','Maintenance & escrow'],['trips','Per diem / IFTA'],['fleet','Trucks & mileage']]){const b=button(n,l,()=>{tab=k;render()});if(k===tab)b.setAttribute('aria-current','page');}}
-function render(){renderControls();({overview,settlements,calc,leases,maintenance,trips,fleet})[tab]();}
+function render(){const shortcut=document.querySelector('body > nav [data-business-shortcut="truck"]');if(shortcut){if(tab==='settlements')shortcut.setAttribute('aria-current','page');else shortcut.removeAttribute('aria-current');}renderControls();({overview,settlements,calc,leases,maintenance,trips,fleet})[tab]();}
 function overview(){list('Trucking financial overview');if(!data.trucks.length)button(view,'Add your first truck',()=>{tab='fleet';render()});
  const preset=input(view,'Reporting period',overviewPreset,'text',[['week','This week'],['last-week','Last week'],['month','Month to date'],['year','Year to date'],['custom','Custom date range']]);
  const f=dates(view),out=el(view,'section'),range=overviewRange||T.reportRange(overviewPreset==='custom'?'week':overviewPreset,today());f.from.value=range.from;f.to.value=range.to;
