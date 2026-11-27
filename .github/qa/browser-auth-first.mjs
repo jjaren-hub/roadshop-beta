@@ -156,9 +156,11 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal(await page.evaluate(async owner=>(await LocalBooks.list(owner))[0].books['roadshop-ledger-v1'].length,uid),(await page.evaluate(async ({owner,pw,backup})=>(await EarnKeepBackup.decode(backup,owner,pw)).payload.workspaces[0].books['roadshop-ledger-v1'].length,{owner:uid,pw,backup})));
    await page.getByLabel('Backup to restore',{exact:true}).setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(backup)});await page.getByLabel('Backup password if encrypted',{exact:true}).fill(pw);page.once('dialog',d=>d.accept());await button('Inspect and restore backup').click();await page.getByText('Restored 0 new businesses.',{exact:false}).waitFor();
    // Verify current snapshot before deletion; the restored revision differs from the original export.
+   if(await button('Toggle Delete all local financial data').getAttribute('aria-expanded')==='false')await button('Toggle Delete all local financial data').click();
    await page.getByLabel('Type DELETE LOCAL DATA to confirm',{exact:true}).fill('DELETE LOCAL DATA');await button('Delete local data').click();await page.getByText('Verify an external backup of the current data first.',{exact:true}).waitFor();
    const fresh=await page.evaluate(async owner=>EarnKeepBackup.encode(await EarnKeepBackup.snapshot(owner)),uid);
    await page.getByLabel('Saved backup file',{exact:true}).setInputFiles({name:'fresh.json',mimeType:'application/json',buffer:Buffer.from(fresh)});await button('Verify backup file').click();await page.getByText('External file integrity verified.',{exact:false}).waitFor();
+   if(await button('Toggle Delete all local financial data').getAttribute('aria-expanded')==='false')await button('Toggle Delete all local financial data').click();
    await page.getByLabel('Type DELETE LOCAL DATA to confirm',{exact:true}).fill('DELETE LOCAL DATA');page.once('dialog',d=>d.accept());await button('Delete local data').click();await page.getByText('Local account records deleted.',{exact:false}).waitFor();assert.equal(await page.evaluate(async owner=>(await LocalBooks.list(owner)).length,uid),0);
    await page.goto(root+'workspace.html?home=1');await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();
  }
@@ -219,6 +221,28 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();await page.getByLabel('Loaded miles',{exact:true}).fill('100');await page.getByLabel('Deadhead miles',{exact:true}).fill('10');await button('Save mileage').click();
    await page.getByText(/Deletion protected:/).waitFor();await button('Delete truck Fixture 101').click();await page.getByRole('heading',{name:'Fixture 101',exact:true}).waitFor();
    page.once('dialog',d=>d.accept());await button('Remove mileage record').click();await page.getByText(/Deletion protected:/).waitFor({state:'detached'});page.once('dialog',d=>d.accept());await button('Delete truck Fixture 101').click();await page.getByText('No trucks added yet.').waitFor();
+   const fleetToggle=button('Toggle Add truck');
+   await page.getByLabel('Truck unit name').fill('Unsaved unit');
+   await fleetToggle.focus();await page.keyboard.press('Space');
+   assert.equal(await fleetToggle.getAttribute('aria-expanded'),'false');
+   assert.equal(await page.getByLabel('Truck unit name').isVisible(),false);
+   await fleetToggle.click();assert.equal(await page.getByLabel('Truck unit name').inputValue(),'Unsaved unit');
+   await fleetToggle.click();await page.reload();await button('Trucks & mileage').click();
+   assert.equal(await fleetToggle.getAttribute('aria-expanded'),'false');await fleetToggle.click();
+   await button('Per diem / IFTA').click();
+   const calendar=page.locator('details[data-card-id=calendar]'),ifta=page.locator('details[data-card-id=ifta]');
+   assert(await calendar.evaluate(d=>d.open));assert(!await ifta.evaluate(d=>d.open));
+   await ifta.locator('summary').click();assert(await calendar.evaluate(d=>d.open));
+   const day=calendar.locator('button[data-date]').first();
+   for(const [before,after] of [['empty','full'],['full','partial'],['partial','empty']]){
+     assert((await day.getAttribute('class')).includes('perdiem-'+before));
+     const date=await day.getAttribute('data-date');await day.click();await calendar.locator('[data-date="'+date+'"].perdiem-'+after).waitFor();
+     assert((await day.getAttribute('class')).includes('perdiem-'+after));
+   }
+   await calendar.locator(':scope > summary').click();
+   await page.reload();await button('Per diem / IFTA').click();
+   assert(!await calendar.evaluate(d=>d.open));assert(await ifta.evaluate(d=>d.open));
+   console.log('PASS card keyboard, drafts, refresh, simultaneous expansion and calendar day cycle');
    const quoteDate=await page.evaluate(()=>Q.today());
    const seedQuotes=[{id:'Q-123456789abc',trade:'Trucking',issued:quoteDate,expires:quoteDate,shop:'Fixture Trucking',contact:'fixture@example.invalid',customer:'Fixture customer',vehicle:'',description:'Paid service',tax:500,items:[{label:'Service',kind:'labor',qty:100,cost:0,rate:5000}],paid:{date:quoteDate}}];await page.evaluate(async ({owner,quotes})=>{const [w]=await LocalBooks.list(owner);await LocalBooks.write(owner,w.id,w.revision,{...w.books,'roadshop-quotes-v1':quotes})},{owner:uid,quotes:seedQuotes});
    await page.goto(root+'trucking.html');await page.getByText('Revenue: $50.00',{exact:true}).waitFor();await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();await page.getByLabel('Reporting period',{exact:true}).selectOption('year');assert.equal(await page.getByLabel('From',{exact:true}).inputValue(),(await page.getByLabel('Through',{exact:true}).inputValue()).slice(0,4)+'-01-01');await page.getByRole('heading',{name:'Fuel costs',exact:true}).waitFor();await page.getByRole('heading',{name:'Settlements in this period',exact:true}).waitFor();await page.getByRole('heading',{name:'Per diem working records',exact:true}).waitFor();await page.getByLabel('Reporting period',{exact:true}).selectOption('week');await page.getByText('Net profit: -$50.00',{exact:true}).waitFor();assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.id.startsWith('payment-')).length,0);
@@ -326,10 +350,44 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
 
  }
  if(job==='other'){
+   const historyToggle=button('Toggle Billing history');
+   await page.goto(root+'billing.html');await historyToggle.click();assert.equal(await historyToggle.getAttribute('aria-expanded'),'false');
+   const reopened=await ctx.newPage();await reopened.goto(root+'billing.html');
+   assert.equal(await reopened.getByRole('button',{name:'Toggle Billing history',exact:true}).getAttribute('aria-expanded'),'false');
+   await reopened.close();
    await page.goto(root+'account.html?switch=1');await page.getByRole('heading',{name:'Your account'}).waitFor();await page.locator('#business').fill('Second fixture');await button('Create workspace').click();await page.getByRole('heading',{name:'Business profile'}).waitFor();
+   await page.goto(root+'billing.html');assert.equal(await historyToggle.getAttribute('aria-expanded'),'true');
    assert.equal((await localSpaces()).length,2);assert.equal(((await localSpaces())[1].books['roadshop-ledger-v1']||[]).length,0);
    await page.goto(root+'account.html?switch=1');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove Second fixture',exact:true}).click();await page.getByText('Business removed. Its records are saved under Archived businesses.').waitFor();assert((await localSpaces())[1].books['roadshop-workspace-archive-v1']);await page.locator('#archive-section summary').click();page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Restore Second fixture',exact:true}).click();await page.getByText('Business restored.').waitFor();assert(!(await localSpaces())[1].books['roadshop-workspace-archive-v1']);
-   await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
+   await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'billing.html');assert.equal(await historyToggle.getAttribute('aria-expanded'),'false');await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
+ }
+ if(job==='truck'){
+   const cached=await browser.newContext({storageState:await ctx.storageState({indexedDB:true}),serviceWorkers:'allow',viewport:{width:320,height:780},reducedMotion:'reduce'});
+   try{
+     await cached.route('https://*.supabase.co/**',r=>r.abort());
+     const installed=await cached.newPage();
+     await installed.goto(root);
+     await installed.evaluate(async()=>{await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready});
+     await installed.waitForFunction(()=>!!navigator.serviceWorker.controller);
+     await cached.setOffline(true);
+     // Keep the OS offline signal consistent across navigations on headless
+     // Chromium versions that reset it while the transport remains offline.
+     await cached.addInitScript(()=>Object.defineProperty(navigator,'onLine',{get:()=>false}));
+     await installed.goto(root+'trucking.html');
+     await installed.getByRole('button',{name:'Trucks & mileage',exact:true}).click();
+     const toggle=installed.getByRole('button',{name:'Toggle Add truck',exact:true});
+     for(const [width,theme] of [[320,'light'],[390,'dark'],[1280,'light'],[1280,'dark']]){
+       await installed.setViewportSize({width,height:820});
+       await installed.evaluate(t=>RoadTheme.set(t),theme);
+       assert.equal(await installed.evaluate(()=>document.documentElement.dataset.theme),theme);
+       const metrics=await toggle.evaluate(b=>({height:b.getBoundingClientRect().height,fits:document.documentElement.scrollWidth<=innerWidth}));
+       assert(metrics.height>=44 && metrics.fits,'Card must fit viewport and keep a 44px touch target at '+width);
+     }
+     await toggle.click();
+     await installed.reload();await installed.getByRole('button',{name:'Trucks & mileage',exact:true}).click();
+     assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+     console.log('PASS installed app offline reload, card persistence, 320/390/1280px layouts and light/dark themes');
+   }finally{await cached.close()}
  }
  await page.goto(root+'admin.html');await page.getByText('Administrator access is required.').waitFor();
  await page.goto(root+'workspace.html?home=1');await page.getByRole('button',{name:'Log out',exact:true}).click();await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#credentials').waitFor();assert.deepEqual(errors,[]);

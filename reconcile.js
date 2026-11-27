@@ -33,7 +33,7 @@ function reconciliation(selectedId) {
     return;
   }
   button(area,'All statements',()=>reconciliation());
-  const heading=section(area,statement.account+' · '+statement.month);
+  const heading=section(area,statement.account+' · '+statement.month);heading.dataset.cardId=statement.id;
   const review=R.review(statement,ledger);
   el(heading,'p',(statement.closed?'Closed':'Draft')+' · Opening '+money(statement.opening)+' · Ending '+money(statement.closing));
   el(heading,'p','Ending balance difference: '+money(review.difference));
@@ -69,7 +69,7 @@ function reconciliation(selectedId) {
   const list=section(area,'Statement lines');
   if(!statement.lines.length)el(list,'p','No lines yet. For a statement with no activity, verify that the opening and ending balances agree.');
   for(const line of statement.lines){
-    const box=el(list,'details');el(box,'summary',line.date+' · '+line.description+' · '+money(line.cents)+' · '+(line.matches.length?'Matched':'Needs match'));
+    const box=el(list,'details');box.dataset.cardId=line.id;el(box,'summary',line.date+' · '+line.description+' · '+money(line.cents)+' · '+(line.matches.length?'Matched':'Needs match'));
     for(const m of line.matches)el(box,'p','Saved match: '+m.date+' · '+m.category+' · '+money(m.cash));
     if(statement.closed)continue;
     // Create the picker only when opened, including on large imported statements.
