@@ -19,15 +19,22 @@
  if(!isMechanic){for(const [id,label] of Object.entries({quoteHeading:'Quotes',quoteRates:'Default pricing',quoteMarkupLabel:'Materials markup (%)',quoteHourlyLabel:'Default labor rate ($/hour)',quoteMileageLabel:'Default travel charge ($/mile)',quoteBusinessLabel:'Business name',quoteContactLabel:'Business contact (phone or email)',quoteVehicleLabel:'Project / vehicle reference (optional)',quoteDescriptionLabel:'Work or service description',quotePricingLabel:'Materials markup (%)',quoteLinesHeading:'Materials, labor & fees'})){const n=$(id);if(n)n.textContent=label} $('detailedOrder').hidden=true;$('additem').textContent='Add material';$('new').textContent='New quote';}
  const key='roadshop-quotes-v1';const read=()=>JSON.parse(BookStore.getItem(key)||'[]');
  async function save(q){const all=read();const i=all.findIndex(x=>x.id===q.id);if(i>=0&&all[i].paid)q.paid=all[i].paid;if(i===-1)all.unshift(q);else all[i]=q;await BookStore.setItem(key,JSON.stringify(all))}
- async function deleteQuote(q){const all=read(),latest=all.find(x=>x.id===q.id);if(!latest||latest.paid||latest.approval||latest.partCosts?.length||latest.paymentCorrections?.length)throw Error('Only unpaid, unapproved estimates without purchase or payment history can be deleted.');if(!confirm('Permanently delete this mistaken estimate for '+latest.customer+'?'))return;await BookStore.setItem(key,JSON.stringify(all.filter(x=>x.id!==latest.id)));list();$('status').textContent='Estimate deleted.';}
- function deleteButton(p,q){if(!q.paid&&!q.approval&&!q.partCosts?.length&&!q.paymentCorrections?.length){const b=button(p,'Delete quote',()=>deleteQuote(q));b.className='danger-action';}}
+ function deleteButton(p,q,quick=true){
+   const snapshot=JSON.parse(BookStore.getItem(Planning.key)||'{}'),rows=JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]'),mode=QuoteRemoval.mode(q,quick,rows,snapshot);
+   const b=button(p,mode==='restore'?'Restore quote':'Delete quote',async()=>{if(!confirm(QuoteRemoval.message(mode)))return;b.disabled=true;try{
+     const current=JSON.parse(BookStore.getItem(Planning.key)||'{}'),ledger=JSON.parse(BookStore.getItem('roadshop-ledger-v1')||'[]');
+     if(quick){const next=QuoteRemoval.change(read(),q.id,true,ledger,current,mode);next.forEach(x=>Q.validate(x,true));await BookStore.setItem(key,JSON.stringify(next));}
+     else{const m=Mechanic.state(current);m.jobs=QuoteRemoval.change(m.jobs,q.id,false,ledger,current,mode);await BookStore.setItem(Planning.key,JSON.stringify({...current,mechanic:m}));}
+     list();$('status').textContent=mode==='archive'?'Quote archived; accounting history preserved.':mode==='restore'?'Quote restored.':'Quote deleted.';
+   }finally{b.disabled=false}});if(mode!=='restore')b.className='danger-action';
+ }
  function screen(id){for(const x of ['list','compose','view'])$(x).hidden=x!==id;$('status').textContent='';window.scrollTo(0,0)}
  function list(){
    screen('list');const cards=$('cards');cards.replaceChildren();
    const profile=JSON.parse(BookStore.getItem(Planning.key)||'{}')||{};
    showJobList(cards,read(),(isMechanic?Mechanic.state(profile).jobs:[]),(card,record,quick)=>{
      if(quick){button(card,'Open estimate',()=>view(record));deleteButton(card,record);}
-     else {const a=el('a','Open work order');a.href='mechanic.html?job='+encodeURIComponent(record.id);card.append(a);}
+     else {const a=el('a','Open work order');a.href='mechanic.html?job='+encodeURIComponent(record.id);card.append(a);deleteButton(card,record,false);}
    });
  }
  function input(label,key,type,value,max){const l=el('label',label);const i=el('input');i.dataset.field=key;i.type=type;i.value=value??'';i.required=true;if(type==='number'){i.min=key==='qty'?'.01':'0';i.step='.01';i.max=max}else i.maxLength=max;l.append(i);return l}
