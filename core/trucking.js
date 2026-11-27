@@ -68,6 +68,36 @@ function escrow(rows,truck){const result={maintenance:0,tire:0};for(const r of r
 function repairRows(m,ledger,id){const cents=money(m.amount);if(!F.safe(cents))throw Error('Enter a positive repair amount.');if(ledger.some(r=>r.source==='trucking-repair'&&r.externalId?.startsWith(m.id+'-')))throw Error('Repair already posted.');if(ledger.some(r=>r.trade==='Trucking'&&r.date===m.date&&(!r.vehicle||r.vehicle===m.truck)&&r.sign!==-1&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&F.lines(r).some(x=>x.cents===cents&&x.classification==='expense'&&/repair|maintenance|oil change|tire|inspection/i.test(x.category))))throw Error('Possible existing repair expense. Use history only and reconcile any escrow release separately.');const common={date:m.date,truck:m.truck,ref:m.id,source:'trucking-repair',note:m.note||m.kind};const out=[row({...common,id:id(),category:'Repairs & maintenance',classification:'expense',cents,externalId:m.id+'-expense'})];if(m.funding==='maintenance'||m.funding==='tire'){if(escrow(ledger,m.truck)[m.funding]<cents)throw Error('Insufficient recorded escrow balance. Record or reconcile contributions first.');out.push(row({...common,id:id(),category:(m.funding==='maintenance'?'Maintenance':'Tire')+' escrow release',classification:'escrow_in',cents,externalId:m.id+'-release'}));}return out;}
 function travel(v){requireDate(v.depart);requireDate(v.return);if(v.return<v.depart)throw Error('Return must follow departure.');const days=(Date.parse(v.return)-Date.parse(v.depart))/86400000+1,partial=num(v.partial),home=num(v.home),rate=money(v.rate),deduct=num(v.deduct);if(partial>1||home>days||deduct>100||!Number.isInteger(home))throw Error('Invalid home days or percentage.');const eligible=Math.max(0,days-home-(days===1?1-partial:2*(1-partial)));return {days,eligible,estimated:round(eligible*rate*deduct/100)};}
 function dashboard(data,rows,truck,from,to){const select=r=>(!truck||r.truck===truck)&&r.date>=from&&r.date<=to;const mile=data.mileage.filter(select);const l=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to);const t=F.total(l),loaded=mile.reduce((s,x)=>s+x.loaded,0),deadhead=mile.reduce((s,x)=>s+x.deadhead,0),gallons=mile.reduce((s,x)=>s+x.gallons,0),miles=loaded+deadhead;let fuel=0;for(const r of l)for(const x of F.lines(r))if(x.category==='Diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,loaded,deadhead,miles,gallons,mpg:gallons?miles/gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
+// Report dates refer to actual ledger dates, not settlement work-week dates.
+function reportRange(preset,today){
+ requireDate(today);const shift=(d,n)=>new Date(Date.parse(d)+n*86400000).toISOString().slice(0,10);
+ const monday=shift(today,-((new Date(today+'T00:00:00Z').getUTCDay()+6)%7));
+ if(preset==='week')return {from:monday,to:shift(monday,6)};
+ if(preset==='last-week')return {from:shift(monday,-7),to:shift(monday,-1)};
+ if(preset==='month')return {from:today.slice(0,7)+'-01',to:today};
+ if(preset==='year')return {from:today.slice(0,4)+'-01-01',to:today};
+ throw Error('Choose a reporting period.');
+}
+function periodReport(data,rows,truck,from,to){
+ requireDate(from);requireDate(to);if(to<from)throw Error('End must follow start.');
+ const scoped=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)),selected=scoped.filter(r=>r.date>=from&&r.date<=to),d=dashboard(data,scoped,truck,from,to);
+ const incomeCategories=Object.create(null),transfers=Object.create(null);let diesel=0,reimbursement=0,escrowIn=0,escrowOut=0;
+ for(const r of selected)for(const l of F.lines(r)){
+  const n=l.cents*(r.sign||1),[profit,cash]=F.classes[l.classification];
+  if(profit===1)incomeCategories[l.category]=(incomeCategories[l.category]||0)+n;
+  if(!profit&&cash)transfers[l.classification]=(transfers[l.classification]||0)+cash*n;
+  if(l.classification==='expense'&&normalize(l.category)==='diesel')diesel+=n;
+  if(l.classification==='revenue'&&normalize(l.category)==='fuel reimbursement')reimbursement+=n;
+  if(l.classification==='escrow_in')escrowIn+=n;if(l.classification==='escrow_out')escrowOut+=n;
+ }
+ const settlements=data.settlements.filter(s=>(!truck||s.truck===truck)&&s.date>=from&&s.date<=to),posted=settlements.filter(s=>s.posted);
+ const settlementTotals=posted.reduce((a,s)=>{const q=reconciliation(s,scoped);a.statement+=q.expected;a.linked+=q.cash;if(q.missing||q.difference)a.issues++;return a},{statement:0,linked:0,issues:0});
+ const trips=data.perdiem.filter(x=>(!truck||x.truck===truck)&&x.depart<=to&&x.return>=from),complete=trips.filter(x=>x.depart>=from&&x.return<=to);
+ const travelTotals=complete.reduce((a,x)=>{const q=travel(x);a.eligible+=q.eligible;a.estimated+=q.estimated;a.home+=num(x.home);return a},{eligible:0,estimated:0,home:0});
+ const mileageRecords=data.mileage.filter(x=>(!truck||x.truck===truck)&&x.date>=from&&x.date<=to);
+ const unassigned=rows.filter(r=>r.trade==='Trucking'&&!r.vehicle&&r.date>=from&&r.date<=to);
+ return {...d,incomeCategories,transfers,diesel,reimbursement,netFuel:diesel-reimbursement,escrowIn,escrowOut,escrowAsOf:escrow(scoped.filter(r=>r.date<=to),truck),postedCount:posted.length,draftCount:settlements.length-posted.length,settlementTotals,travelTotals,partialTrips:trips.length-complete.length,mileageCount:mileageRecords.length,unassignedCount:unassigned.length};
+}
 // Trucks are associated by name in older records; also protect references by ID.
 function truckDependencies(data,rows,profile,id){
  const t=data.trucks.find(x=>x.id===id);if(!t)throw Error('Truck not found. Refresh and try again.');
@@ -87,5 +117,5 @@ function deleteTruck(data,rows,profile,id){
  if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
  return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
 }
-return {defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,num,money,requireDate,truckDependencies,deleteTruck};
+return {defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
 })();
