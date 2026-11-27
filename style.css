@@ -228,3 +228,5 @@ html .quote-line-actions>button:hover:not(:disabled){background:var(--ek-nav-hov
 html .quote-line-actions>.quote-action-wide{grid-column:1/-1}
 html .quote-line-actions>button[hidden]{display:none!important}
 @media print{html .quote-line-actions{display:none!important}}
+
+.job-list-filter{display:block;margin:10px 0}.job-list-filter input,.job-list-filter select{display:block;width:100%;box-sizing:border-box;margin-top:4px}
