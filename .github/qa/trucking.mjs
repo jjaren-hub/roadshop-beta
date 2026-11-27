@@ -91,3 +91,13 @@ console.log('PASS load records, stages, revenue, payment date, duplicate prevent
  const none=T.loadFuelEstimate(load,d,[],p,'2026-11-27');if(none.diesel.gallons!==140.625||none.def.gallons!==null)throw Error('Configured MPG fallback failed.');
  console.log('PASS load fuel estimate, 30-day cutoff, loaded + empty miles and labeled fallbacks');
 }
+
+
+{
+ const date='2026-11-27',v={number:'EMPTY-TEST',truck:'A',pickupDate:date,pickupCity:'A',deliveryDate:date,deliveryCity:'B',loaded:1000,empty:100,linehaul:1.45,fsc:.56,emptyRate:1.25,stage:'Delivered'};
+ const load=T.loadRecord(v,[],date,'empty-test'),eq=(a,b)=>{if(a!==b)throw Error('Expected '+b+' got '+a)};
+ eq(load.total,213500);eq(load.emptyCents,12500);eq(T.loadRevenue({...v,emptyRate:0}).total,201000);eq(T.loadRevenue({...v,emptyRate:undefined}).total,201000);
+ let i=0;const paid=T.payLoad(load,[load],[],date,date,{},()=> 'empty-test-row-'+(++i));eq(paid.rows.length,3);eq(paid.rows.find(x=>x.category==='Empty mile pay').cents,12500);eq(paid.rows.reduce((s,r)=>s+r.cents,0),load.total);
+ const q=T.calculate({loaded:1000,deadhead:100,mpg:10,fuel:4,discount:0,linehaul:1.45,fsc:.56,emptyRate:1.25,dispatch:0,reserve:0,fixed:0,extra:0,otherRevenue:0,goal:0,days:5});eq(q.gross,213500);eq(q.emptyRevenue,12500);
+ console.log('PASS empty mileage rate, payment posting, legacy zero rates and calculator');
+}
