@@ -4,7 +4,7 @@ const Planning = (() => {
   const registry = {
     truck:{label:'Truck driver',trade:'Trucking',types:['Owner-operator','Lease-purchase operator','Independent contract driver','Small fleet owner'],
       suggestions:['Truck payments','Trailer rental','Insurance','ELD subscription','Parking','Permits','Dispatch fees','Phone and internet'],
-      fields:[['miles','Weekly mileage'],['loaded','Loaded miles per week'],['deadhead','Deadhead miles per week'],['mpg','Miles per gallon'],['fuel','Diesel price ($/gal)'],['linehaul','Linehaul ($/loaded mile)'],['fsc','Fuel surcharge ($/loaded mile)'],['escrow','Escrow reserve ($/total mile)'],['dispatch','Dispatch fee (% of revenue)',100],['discount','Fuel discount ($/gal)'],['days','Working days per week',7]]},
+      fields:[['miles','Weekly mileage'],['loaded','Loaded miles per week'],['deadhead','Deadhead miles per week'],['mpg','Miles per gallon'],['fuel','Diesel price ($/gal)'],['linehaul','Linehaul ($/loaded mile)'],['emptyRate','Empty mile pay ($/empty mile)'],['fsc','Fuel surcharge ($/loaded mile)'],['escrow','Escrow reserve ($/total mile)'],['dispatch','Dispatch fee (% of revenue)',100],['discount','Fuel discount ($/gal)'],['days','Working days per week',7]]},
     mechanic:{label:'Mechanic',trade:'Mechanic',types:['Mobile mechanic','Repair shop','Both'],
       suggestions:['Shop or office rent','Service truck payments','Liability insurance','Tool payments','Equipment payments','Utilities','Diagnostic software','Advertising'],
       fields:[['hourly','Hourly labor rate ($)'],['markup','Parts markup (%)'],['mileage','Mileage charge ($/mile)'],['minimum','Minimum service charge ($)'],['diagnostic','Diagnostic fee ($)'],['supplies','Shop supply charge ($/job)'],['hours','Expected billable hours per week'],['tax','Sales tax rate (%)',100],['taxBasis','Sales tax applies to',['None','Parts','Labor','Parts and labor']],['terms','Invoice payment terms',['Due on receipt','Net 7','Net 15','Net 30','Net 60']]]},
@@ -60,7 +60,7 @@ const Planning = (() => {
     const afterTax=1-(+g.tax||0)/100;
     const targetProfit=allocations===0?profit:Math.max(profit,afterTax>0?allocations/afterTax:Infinity);
     return {weekly,monthly,annual,cashWeekly,cashAnnual,excluded,breakEven:keep>0?(weekly+fuel)/keep:Infinity,target:keep>0?(weekly+fuel+cashWeekly+escrow+targetProfit)/keep:Infinity,
-      projected:p.job==='truck'?(+o.loaded||0)*((+o.linehaul||0)+(+o.fsc||0)):p.job==='mechanic'?(+o.hours||0)*(+o.hourly||0):null,
+      projected:p.job==='truck'?(+o.loaded||0)*((+o.linehaul||0)+(+o.fsc||0))+(+o.deadhead||0)*(+o.emptyRate||0):p.job==='mechanic'?(+o.hours||0)*(+o.hourly||0):null,
       upcoming:bills.map(b=>({...b,date:nextDate(b,today)})).sort((a,b)=>a.date.localeCompare(b.date))};
   }
   return {registry,goals,periods,key,nextDate,forecast};
