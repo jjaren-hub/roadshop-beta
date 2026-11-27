@@ -49,3 +49,14 @@ reject(()=>T.payLoad(delivered,[delivered],[previous],today,today,{},id));const 
 const F=new Function(readFileSync('core/finance.js','utf8')+';return Finance')();eq(F.linkedForDeletion(previous,{trucking:{loads:[linked.record]}},linked.rows),true);
 console.log('PASS load records, stages, revenue, payment date, duplicate prevention and ledger protection');
 }
+
+
+{
+ const d=T.blank();d.trucks=[{id:'truck-a',name:'Truck A',startingMiles:1000},{id:'truck-b',name:'Truck B',startingMiles:2000}];d.loads=[{kind:'record',id:'load-a',number:'L-1',truck:'Truck A'}];
+ let sequence=0;const uid=()=>'fuel-test-'+(++sequence);
+ const v={truckId:'truck-a',date:'2026-11-27',location:'Fuel stop',odometer:'1750',dieselGallons:'100',dieselPrice:'4.259',defGallons:'5',defPrice:'3.50',loadId:'load-a'};
+ const q=T.fuelPurchase(v,d,[],'2026-11-27',uid);if(q.total!==44340||q.parts[0].mpg!==7.5||q.parts[1].mpg!==150||q.added.some(r=>r.ref!=='L-1')||T.currentMileage(d.trucks[0],d,q.added)!==1750||T.currentMileage(d.trucks[1],d,q.added)!==2000)throw Error('Fuel calculations or linking failed.');
+ const next=T.fuelPurchase({...v,odometer:'1950',dieselGallons:'25',defGallons:'',defPrice:''},d,q.added,'2026-11-27',uid);if(next.parts[0].mpg!==8||next.added.length!==1)throw Error('Second fuel stop failed.');
+ for(const change of [{odometer:'1749'},{truckId:'truck-b'},{date:'2026-11-26'},{dieselPrice:'0'}]){let rejected=false;try{T.fuelPurchase({...v,...change},d,q.added,'2026-11-27',uid)}catch{rejected=true}if(!rejected)throw Error('Invalid fuel purchase accepted.');}
+ console.log('PASS fuel purchase calculations, chronological guard, load/truck isolation and current mileage');
+}
