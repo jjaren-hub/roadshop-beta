@@ -230,3 +230,6 @@ html .quote-line-actions>button[hidden]{display:none!important}
 @media print{html .quote-line-actions{display:none!important}}
 
 .job-list-filter{display:block;margin:10px 0}.job-list-filter input,.job-list-filter select{display:block;width:100%;box-sizing:border-box;margin-top:4px}
+
+/* Four compact, touch-friendly shortcuts for trucking workspaces. */
+html .business-tabs.trucking-tabs{gap:4px;padding-inline:6px}html .business-tabs.trucking-tabs>.navlink{font-size:12px;padding:6px 2px;min-height:44px;white-space:nowrap}

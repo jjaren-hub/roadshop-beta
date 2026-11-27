@@ -10,7 +10,7 @@ BookStore.start().then(async ready=>{
   if((entry!=='workspace.js' && !profile?.complete) || (entry==='app.js' && !mechanicHome && !new URLSearchParams(location.search).has('ledger')) || (entry==='trucking.js' && profile?.job!=='truck') || (entry==='mechanic.js' && profile?.job!=='mechanic')){
     location.replace(profile?.complete?'workspace.html?home=1':'workspace.html');return;
   }
-  if(businessReady) installBusinessTabs(entry);
+  if(businessReady) installBusinessTabs(entry,profile.job);
   const logout=document.getElementById('signout');
   if(window.cloudClient && logout){
     logout.hidden=false;
@@ -30,18 +30,25 @@ BookStore.start().then(async ready=>{
   script.onerror=()=>{window.removeEventListener('error',initializationError);showAuthError(Error('Could not load the workspace. Reload and try again.'));};
   document.body.append(script);
 }).catch(showAuthError);
-function installBusinessTabs(entry){
+function businessShortcuts(job){
+  return job==='truck'?[{label:'Add load',href:'trucking.html?tab=calc&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}]:[{label:'Quotes',href:'quotes.html'}];
+}
+function installBusinessTabs(entry,job){
   // Use the existing Ledger button on the ledger page so its settings view still works.
   const nav=document.querySelector('body > nav')||document.createElement('nav');
   const ledger=entry==='app.js'?document.getElementById('home'):document.createElement('a');
   if(entry!=='app.js'){ledger.href='ledger.html?ledger';ledger.textContent='Ledger';}
-  const quote=document.createElement('a');quote.href='quotes.html';quote.textContent='Quotes';
-  ledger.classList.add('navlink');quote.className='navlink';
-  if(entry==='quotes.js')quote.setAttribute('aria-current','page');
+  ledger.classList.add('navlink');
+  const actions=businessShortcuts(job).map(shortcut=>{
+    const action=document.createElement('a');action.href=shortcut.href;action.textContent=shortcut.label;action.className='navlink';
+    if(job!=='truck'&&entry==='quotes.js')action.setAttribute('aria-current','page');
+    return action;
+  });
+  nav.classList.toggle('trucking-tabs',job==='truck');
   const settings=document.getElementById('account');
   if(entry==='app.js' && settings){document.querySelector('.workspace-heading .workspace-nav').append(settings);}
   nav.classList.add('mechanic-tabs','business-tabs');nav.setAttribute('aria-label','Business navigation');
-  nav.replaceChildren(ledger,quote);if(!nav.isConnected)document.body.append(nav);
+  nav.replaceChildren(ledger,...actions);if(!nav.isConnected)document.body.append(nav);
   document.body.classList.add('has-mechanic-tabs');
 }
 function showAuthError(error){if(typeof RoadCommercial!=='undefined')RoadCommercial.activity('error');
