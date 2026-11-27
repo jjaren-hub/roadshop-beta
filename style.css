@@ -220,3 +220,11 @@ html .customer-document .document-brand{display:flex;align-items:flex-start;gap:
 html .customer-document .document-shop{min-width:0;flex:1}
 html .customer-document .document-logo{display:block;flex:none;width:auto;height:auto;max-width:min(32%,108px);max-height:64px;object-fit:contain}
 @media print{html body:has(.customer-document) main :has(.customer-document)>:not(:has(.customer-document)):not(.customer-document){display:none!important}html body:has(.customer-document) main>summary{display:none!important}html body:has(.customer-document) main details:has(.customer-document){display:block!important}html .customer-document .document-brand{break-inside:avoid}}
+
+/* Quote line controls: compact, aligned, touch-friendly form actions. */
+html .quote-line-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch;margin:12px 0 4px}
+html .quote-line-actions>button,html:not([data-theme=light]) .quote-line-actions>button,html[data-theme=light] .quote-line-actions>button{display:flex;align-items:center;justify-content:center;text-align:center;width:100%;min-width:0;min-height:44px;max-width:100%;margin:0;padding:8px 7px;font-size:13px;font-weight:700;line-height:1.25;border:1px solid var(--ek-nav-border);border-radius:8px;background:var(--ek-nav-bg);color:var(--ek-nav-fg);white-space:normal;overflow-wrap:anywhere}
+html .quote-line-actions>button:hover:not(:disabled){background:var(--ek-nav-hover);border-color:var(--ek-focus)}
+html .quote-line-actions>.quote-action-wide{grid-column:1/-1}
+html .quote-line-actions>button[hidden]{display:none!important}
+@media print{html .quote-line-actions{display:none!important}}

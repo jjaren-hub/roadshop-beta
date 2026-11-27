@@ -18,3 +18,7 @@ Additional QA: verify desktop and mobile logo geometry, actual canvas draw dimen
 - Add an explicit Add shop supply charge button to detailed mechanic quotes and quick quotes, using the active business's existing Shop supply charge ($/job) setting. Insert one customer charge with quantity one; allow editing and removal; repeated shortcut taps do not duplicate it. Existing records are not changed.
 - Detailed quotes use the existing supplies line type and existing discount, minimum service charge and tax rules (tax checkbox initially off). Quick quotes use the existing manual estimated tax amount and categorize paid supply charges as Shop supplies revenue, not a recorded expense.
 - Include charges through existing customer document/PDF projection and payment calculations. Add browser and quick quote payment regression coverage. Bump offline cache. Production promotion requires passing beta QA.
+
+## 2026-11-27 — quote button layout (beta)
+- Align quick quote charge actions into a two-column grid, with the mechanic-only shop supply shortcut spanning both columns. Match the existing EarnKeep green controls in light and dark modes, preserve 44px touch targets and keep hidden controls hidden.
+- Group detailed quote add-line and supply actions into matching columns. No pricing, accounting, tax, document or navigation behavior changes. Add browser layout assertions at 320, 390 and 1280px. Refresh offline cache; beta quality gate required.
