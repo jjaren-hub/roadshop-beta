@@ -25,6 +25,29 @@ const stated=money(expected.replace(/^-/,'') )*(expected.startsWith('-')?-1:1);
 return {gross,deductions,credits,net,stated,difference:net-stated,lines};}
 function duplicate(s,existing){return existing.find(x=>x.id!==s.id&&((normalize(x.carrier)===normalize(s.carrier)&&normalize(x.number)===normalize(s.number))||(s.document?.hash&&x.document?.hash===s.document.hash)));}
 function row({id,date,truck,category,classification,cents,ref='',note='',source='',externalId='',settlement='',equipment=''}){const type=classification==='revenue'?'Income':['expense','interest'].includes(classification)?'Expense':'Transfer';return F.check({id,date,trade:'Trucking',type,category:clean(category),classification,cents,ref:clean(ref),note:clean(note,250),vehicle:clean(truck,180),equipment:clean(equipment,180),settlement:clean(settlement,180),source,externalId,audit:F.audit({},'created',source||'Trucking module')});}
+// Fuel stops are represented by separate ledger rows, sharing a stable purchase ID.
+function activeFuelRows(rows,t){
+ const reversed=new Set(rows.filter(r=>r.sign===-1).map(r=>r.reversalOf));
+ return rows.filter(r=>r.trade==='Trucking'&&r.source==='trucking-fuel'&&r.fuel&&r.sign!==-1&&!reversed.has(r.id)&&(!t||r.vehicle===t.name||r.vehicle===t.id));
+}
+function currentMileage(t,data,rows){
+ const readings=[t.startingMiles,...data.mileage.filter(x=>x.truck===t.name||x.truck===t.id).map(x=>Number(x.odometer)).filter(n=>n>0),...activeFuelRows(rows,t).map(x=>x.fuel.odometer)].filter(n=>Number.isSafeInteger(n)&&n>=0);
+ return readings.length?Math.max(...readings):null;
+}
+function fuelPurchase(v,data,rows,today,id){
+ const t=data.trucks.find(x=>x.id===v.truckId);if(!t)throw Error('Choose a truck first.');
+ requireDate(v.date);if(v.date>today)throw Error('Fuel date cannot be in the future.');
+ const location=clean(v.location,180);if(!location)throw Error('Enter fuel location.');
+ const load=v.loadId?data.loads.find(x=>x.kind==='record'&&x.id===v.loadId&&x.truck===t.name):null;if(v.loadId&&!load)throw Error('Choose a load assigned to this truck.');
+ const raw=String(v.odometer??'').trim();if(!/^\d+$/.test(raw))throw Error('Enter a whole truck odometer reading.');const odometer=num(raw,'truck odometer');if(!Number.isSafeInteger(odometer))throw Error('Invalid odometer.');
+ const previous=currentMileage(t,data,rows);if(previous!==null&&odometer<previous)throw Error('Odometer cannot be below current mileage. Record purchases in odometer order.');
+ if(activeFuelRows(rows,t).some(x=>x.date>v.date)||data.mileage.some(x=>(x.truck===t.name||x.truck===t.id)&&Number(x.odometer)>0&&x.date>v.date))throw Error('Record fuel purchases in date order to keep mileage accurate.');
+ const miles=previous===null?null:odometer-previous;
+ const parts=[['Diesel',v.dieselGallons,v.dieselPrice],['DEF',v.defGallons,v.defPrice]].map(([category,g,p])=>{const gallons=num(g,category+' gallons'),price=num(p,category+' price');if(gallons>0&&price<=0||price>0&&gallons<=0)throw Error('Enter both gallons and price for '+category+'.');const cents=round(gallons*price*100);if(gallons&&!F.safe(cents))throw Error('Invalid '+category+' total.');return {category,gallons,price,cents,mpg:gallons&&miles!==null&&miles>0?miles/gallons:null};}).filter(x=>x.gallons>0);
+ if(!parts.length)throw Error('Enter diesel or DEF purchased.');
+ const purchaseId=id();const added=parts.map(x=>F.check({...row({id:id(),date:v.date,truck:t.name,category:x.category,classification:'expense',cents:x.cents,ref:load?.number||'',note:'Fuel purchase at '+location,source:'trucking-fuel',externalId:purchaseId+'-'+x.category.toLowerCase()}),party:location,fuel:{purchaseId,truckId:t.id,loadId:load?.id||'',odometer,previous,miles,gallons:x.gallons,price:x.price,mpg:x.mpg}}));
+ return {added,previous,odometer,miles,total:parts.reduce((n,x)=>n+x.cents,0),parts};
+}
 const loadStages=['Planned','Picked up','Delivered','Paid'];
 function loadRevenue(v){
  const loaded=num(v.loaded,'loaded miles'),empty=num(v.empty,'empty miles'),linehaul=num(v.linehaul,'linehaul rate'),fsc=num(v.fsc,'fuel surcharge rate');
@@ -159,5 +182,5 @@ function deleteTruck(data,rows,profile,id){
  if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
  return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
 }
-return {loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
+return {activeFuelRows,currentMileage,fuelPurchase,loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
 })();
