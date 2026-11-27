@@ -58,11 +58,10 @@ function profile(form){
   for(const [id,label,type] of [['owner','Owner name'],['email','Business email','email'],['phone','Business phone','tel'],['address','Business address']])field(form,state.profile,id,label,{type});
   field(form,state.profile,'structure','Business structure',{choices:['Sole proprietorship','LLC','Partnership','Corporation','Other']});
   const upload=el(el(form,'label','Business logo (optional, PNG or JPEG up to 200 KB)'),'input');upload.type='file';upload.accept='image/png,image/jpeg';
-  upload.onchange=async()=>{const file=upload.files[0];if(!file)return;if(!['image/png','image/jpeg'].includes(file.type)||file.size>200000){feedback.textContent='Choose a PNG or JPEG under 200 KB.';return;}
-    const reader=new FileReader();reader.onload=async()=>{state.profile.logo=reader.result;try{await save();render();}catch{}};reader.readAsDataURL(file);};
+  upload.onchange=async()=>{const file=upload.files[0];if(!file)return;upload.disabled=true;try{const src=await Q.readLogo(file);if(!upload.isConnected)return;const previous=state.profile.logo;state.profile.logo=src;try{await save();render()}catch(e){if(previous===undefined)delete state.profile.logo;else state.profile.logo=previous;throw e}}catch(e){feedback.textContent=e.message;upload.value=''}finally{upload.disabled=false}};
   if(state.profile.logo){logo(form);btn(form,'Remove logo',async()=>{delete state.profile.logo;await save();render();});}
 }
-function logo(parent){if(/^data:image\/(png|jpeg);base64,/.test(state.profile.logo||'')){const img=el(parent,'img');img.src=state.profile.logo;img.alt='Business logo';img.width=72;}}
+function logo(parent){const src=Q.logoData(state.profile.logo);if(src){const img=el(parent,'img');img.alt='Business logo';img.className='business-profile-logo';img.addEventListener('error',()=>img.remove(),{once:true});img.src=src;}}
 function bills(form){
   if(state.complete){const manager=el(form,'a','Manage payment history, variable bills and schedules');manager.href='finance.html?tab=bills';}
   const suggestions=registry[state.job]?.suggestions||[];

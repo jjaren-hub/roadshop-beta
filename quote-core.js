@@ -3,6 +3,33 @@ const Q = (() => {
   const dollars = cents => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
   const today = (offset=0) => {const d=new Date();d.setDate(d.getDate()+offset);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
   const amount = (qty,cents) => Math.round(qty*cents/100);
+  // Only bounded, local PNG/JPEG data URLs may enter a customer document.
+  const maxLogoBytes=200000;
+  function logoData(value){
+    if(typeof value!=='string'||value.length>Math.ceil(maxLogoBytes/3)*4+23)return '';
+    const m=/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!m||m[2].length%4)return '';
+    try{
+      const b=atob(m[2]);if(b.length>maxLogoBytes)return '';
+      if(m[1]==='png'&&b.length>=33&&b.slice(0,8)==='\x89PNG\r\n\x1a\n'&&b.slice(12,16)==='IHDR'){
+        const dim=i=>b.charCodeAt(i)*16777216+b.charCodeAt(i+1)*65536+b.charCodeAt(i+2)*256+b.charCodeAt(i+3);
+        if(!dim(16)||!dim(20)||dim(16)>4096||dim(20)>4096)return '';
+        return value;
+      }
+      if(m[1]==='jpeg'&&b.length>=4&&b.slice(0,3)==='\xff\xd8\xff'&&b.slice(-2)==='\xff\xd9')return value;
+    }catch{}
+    return '';
+  }
+  async function logoImage(value){
+    const src=logoData(value);if(!src)return null;
+    try{const img=new Image();img.src=src;await img.decode();return img.naturalWidth>0&&img.naturalHeight>0&&img.naturalWidth<=4096&&img.naturalHeight<=4096?img:null}catch{return null}
+  }
+  async function readLogo(file){
+    if(!file||!['image/png','image/jpeg'].includes(file.type)||file.size>maxLogoBytes||!file.size)throw Error('Choose a PNG or JPEG up to 200 KB.');
+    const src=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('Could not read logo.'));r.readAsDataURL(file)});
+    if(!await logoImage(src))throw Error('Choose a valid PNG or JPEG, at most 4096 pixels on either side.');
+    return src;
+  }
   function publicCopy(q) {
     const {id,issued,expires,shop,contact,customer,vehicle,description,tax}=q;
     return {id,issued,expires,shop,contact,customer,vehicle,description,tax,...(q.trade?{trade:q.trade}:{}),items:q.items.map(({label,qty,rate})=>({label,qty,rate}))};
@@ -24,11 +51,11 @@ const Q = (() => {
   async function digest(q){const raw=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(publicCopy(q))));return Array.from(new Uint8Array(raw),b=>b.toString(16).padStart(2,'0')).join('')}
   function lines(q){return [q.shop,q.contact,(q.trade&&q.trade!=='Mechanic'?'SERVICE ESTIMATE  ':'REPAIR ESTIMATE  ')+q.id,'Issued '+q.issued+'   •   Valid through '+q.expires,'Customer: '+q.customer,...(q.vehicle?[(q.trade&&q.trade!=='Mechanic'?'Project / vehicle: ':'Vehicle: ')+q.vehicle]:[]),'',q.description,'',...q.items.flatMap(i=>[i.label,'    '+i.qty/100+' × '+dollars(i.rate)+'     '+dollars(amount(i.qty,i.rate))]),'','Subtotal   '+dollars(total(q)-q.tax),'Estimated tax   '+dollars(q.tax),'Total estimate   '+dollars(total(q))]}
   // Customer-facing projection only. No acquisition cost, margin, private notes or approval evidence.
-  function document(q){const x=publicCopy(validate(q));return {kind:'quote',number:x.id,issued:x.issued,due:x.expires,shop:x.shop,contact:x.contact,customer:x.customer,vehicle:x.vehicle,description:x.description,serviceLabel:x.trade&&x.trade!=='Mechanic'?'Project / reference':'Vehicle',lines:x.items.map(i=>({label:i.label,qty:i.qty,rate:i.rate,total:amount(i.qty,i.rate)})),gross:total(x)-x.tax,discount:0,subtotal:total(x)-x.tax,tax:x.tax,total:total(x)}}
+  function document(q,logo){const x=publicCopy(validate(q));return {logo:logoData(logo),kind:'quote',number:x.id,issued:x.issued,due:x.expires,shop:x.shop,contact:x.contact,customer:x.customer,vehicle:x.vehicle,description:x.description,serviceLabel:x.trade&&x.trade!=='Mechanic'?'Project / reference':'Vehicle',lines:x.items.map(i=>({label:i.label,qty:i.qty,rate:i.rate,total:amount(i.qty,i.rate)})),gross:total(x)-x.tax,discount:0,subtotal:total(x)-x.tax,tax:x.tax,total:total(x)}}
   const title=d=>d.kind==='invoice'?'INVOICE':d.serviceLabel==='Project / reference'?'SERVICE ESTIMATE':'REPAIR ESTIMATE';
   const qty=n=>String(n/100);
   function summary(d){const r=[];if(d.discount){r.push(['Charges',d.gross],['Discount',-d.discount])}r.push(['Subtotal',d.subtotal],[d.kind==='invoice'?'Sales tax':'Estimated tax',d.tax],[d.kind==='invoice'?'Invoice total':'Total estimate',d.total]);if(d.kind==='invoice')r.push(['Payments received',d.paid],['Balance due',d.outstanding]);return r}
-  function renderDocument(parent,d){const make=(p,tag,value,cls)=>{const n=window.document.createElement(tag);if(value!==undefined)n.textContent=value;if(cls)n.className=cls;p.append(n);return n};const sheet=make(parent,'section',undefined,'customer-document');sheet.setAttribute('aria-label',title(d));const top=make(sheet,'div',undefined,'document-top'),shop=make(top,'div');make(shop,'h2',d.shop||'Repair service');for(const v of [d.contact,d.address])if(v)make(shop,'p',v);const meta=make(top,'div',undefined,'document-meta');make(meta,'h3',title(d));make(meta,'p',d.number);make(meta,'p','Issued: '+d.issued);make(meta,'p',(d.kind==='invoice'?'Due: ':'Valid through: ')+d.due);const info=make(sheet,'div',undefined,'document-info');const customer=make(info,'div');make(customer,'h3',d.kind==='invoice'?'BILL TO':'CUSTOMER');for(const v of [d.customer,d.customerContact,d.billing])if(v)make(customer,'p',v);const vehicle=make(info,'div');make(vehicle,'h3',(d.serviceLabel||'Vehicle / equipment').toUpperCase());for(const v of [d.vehicle,d.vin?'VIN / serial: '+d.vin:'',d.mileage!==undefined&&d.mileage!==null?'Odometer: '+d.mileage+' mi':'',d.serviceAddress?'Service address: '+d.serviceAddress:''])if(v)make(vehicle,'p',v);make(sheet,'h3','WORK REQUESTED');make(sheet,'p',d.description,'document-description');const table=make(sheet,'table',undefined,'document-table'),head=make(make(table,'thead'),'tr');for(const label of ['Description','Qty / hrs','Unit rate','Amount'])make(head,'th',label).scope='col';const body=make(table,'tbody');for(const l of d.lines){const r=make(body,'tr');make(r,'td',l.label);make(r,'td',qty(l.qty));make(r,'td',dollars(l.rate));make(r,'td',dollars(l.total))}const sums=make(sheet,'dl',undefined,'document-totals');const totals=summary(d);totals.forEach(([label,value],i)=>{const r=make(sums,'div',undefined,i===totals.length-1?'document-grand':'');make(r,'dt',label);make(r,'dd',dollars(value))});if(d.terms){make(sheet,'h3','TERMS / NOTES');make(sheet,'p',d.terms,'document-description')}if(d.kind!=='invoice'){const approval=make(sheet,'div',undefined,'document-approval');make(approval,'p','Customer approval / signature __________________');make(approval,'p','Date ______________')}make(sheet,'p','Customer copy · Prepared with EarnKeep','document-footer');return sheet}
+  function renderDocument(parent,d){const make=(p,tag,value,cls)=>{const n=window.document.createElement(tag);if(value!==undefined)n.textContent=value;if(cls)n.className=cls;p.append(n);return n};const sheet=make(parent,'section',undefined,'customer-document');sheet.setAttribute('aria-label',title(d));const top=make(sheet,'div',undefined,'document-top'),brand=make(top,'div',undefined,'document-brand');const src=logoData(d.logo);if(src){const img=make(brand,'img',undefined,'document-logo');img.alt='Business logo';img.addEventListener('error',()=>img.remove(),{once:true});img.src=src;}const shop=make(brand,'div',undefined,'document-shop');make(shop,'h2',d.shop||'Repair service');for(const v of [d.contact,d.address])if(v)make(shop,'p',v);const meta=make(top,'div',undefined,'document-meta');make(meta,'h3',title(d));make(meta,'p',d.number);make(meta,'p','Issued: '+d.issued);make(meta,'p',(d.kind==='invoice'?'Due: ':'Valid through: ')+d.due);const info=make(sheet,'div',undefined,'document-info');const customer=make(info,'div');make(customer,'h3',d.kind==='invoice'?'BILL TO':'CUSTOMER');for(const v of [d.customer,d.customerContact,d.billing])if(v)make(customer,'p',v);const vehicle=make(info,'div');make(vehicle,'h3',(d.serviceLabel||'Vehicle / equipment').toUpperCase());for(const v of [d.vehicle,d.vin?'VIN / serial: '+d.vin:'',d.mileage!==undefined&&d.mileage!==null?'Odometer: '+d.mileage+' mi':'',d.serviceAddress?'Service address: '+d.serviceAddress:''])if(v)make(vehicle,'p',v);make(sheet,'h3','WORK REQUESTED');make(sheet,'p',d.description,'document-description');const table=make(sheet,'table',undefined,'document-table'),head=make(make(table,'thead'),'tr');for(const label of ['Description','Qty / hrs','Unit rate','Amount'])make(head,'th',label).scope='col';const body=make(table,'tbody');for(const l of d.lines){const r=make(body,'tr');make(r,'td',l.label);make(r,'td',qty(l.qty));make(r,'td',dollars(l.rate));make(r,'td',dollars(l.total))}const sums=make(sheet,'dl',undefined,'document-totals');const totals=summary(d);totals.forEach(([label,value],i)=>{const r=make(sums,'div',undefined,i===totals.length-1?'document-grand':'');make(r,'dt',label);make(r,'dd',dollars(value))});if(d.terms){make(sheet,'h3','TERMS / NOTES');make(sheet,'p',d.terms,'document-description')}if(d.kind!=='invoice'){const approval=make(sheet,'div',undefined,'document-approval');make(approval,'p','Customer approval / signature __________________');make(approval,'p','Date ______________')}make(sheet,'p','Customer copy · Prepared with EarnKeep','document-footer');return sheet}
   async function documentPdf(d,filename){
     const doc=await PDFLib.PDFDocument.create();doc.setTitle(title(d)+' '+d.number);
     const W=612,H=792,L=36,R=576,B=738,ink='#182420',muted='#46574f',line='#bcc8c0',pale='#f0f4ef',green='#315c36';
@@ -46,8 +73,13 @@ const Q = (() => {
     start();
     // Place the document identity on its own line before wrapping variable-length shop details.
     text(title(d),R,y,17,true,green,'right');y+=27;
-    for(const s of wrap(d.shop||'Repair service',540,19,true)){need(24);text(s,L,y,19,true);y+=23}
-    for(const v of [d.contact,d.address])if(v)block(v,540,10,false,muted);
+    const logo=await logoImage(d.logo),top=y;
+    let shopX=L;
+    if(logo){const scale=Math.min(108/logo.naturalWidth,64/logo.naturalHeight);const w=logo.naturalWidth*scale,h=logo.naturalHeight*scale;ctx.drawImage(logo,L,top,w,h);shopX=L+120;}
+    const shopWidth=R-shopX;
+    for(const s of wrap(d.shop||'Repair service',shopWidth,19,true)){text(s,shopX,y,19,true);y+=23}
+    for(const v of [d.contact,d.address])if(v)for(const s of wrap(v,shopWidth)){text(s,shopX,y,10,false,muted);y+=14}
+    if(logo)y=Math.max(y,top+64);
     y+=8;block('Document no. '+d.number,540,10,true);block('Issued: '+d.issued+'     '+(d.kind==='invoice'?'Due: ':'Valid through: ')+d.due);y+=10;rule(y);y+=10;
     // Two-column customer/vehicle block; long fields safely flow instead of clipping.
     const left=[d.customer,d.customerContact,d.billing].filter(Boolean).flatMap(v=>wrap(v,253));
@@ -72,6 +104,7 @@ const Q = (() => {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
-  async function pdf(q){return documentPdf(document(q),q.id+'.pdf')}
-  return {dollars,today,amount,publicCopy,validate,total,encode,decode,digest,lines,pdf,document,renderDocument,documentPdf,downloadFile,summary};
+  async function printDocument(sheet){const details=sheet.closest('details');if(details)details.open=true;await Promise.all([...sheet.querySelectorAll('img')].map(img=>img.decode().catch(()=>img.remove())));window.print()}
+  async function pdf(q,logo){return documentPdf(document(q,logo),q.id+'.pdf')}
+  return {dollars,today,amount,publicCopy,validate,total,encode,decode,digest,lines,pdf,document,renderDocument,documentPdf,downloadFile,summary,logoData,logoImage,readLogo,printDocument};
 })();
