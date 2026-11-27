@@ -44,6 +44,23 @@ function fuelEconomy(rows,truck=null,from='',to='9999-12-31'){
  for(const a of Object.values(result))if(a.gallons>0&&a.miles>0)a.mpg=a.miles/a.gallons;
  return result;
 }
+// Rolling 30 calendar days, including today. Planning only; never posts expenses.
+function loadFuelEstimate(v,data,rows,profile,today){
+ requireDate(today);
+ const t=data.trucks.find(x=>x.name===v.truck||x.id===v.truck);if(!t)throw Error('Choose a truck to estimate fuel.');
+ const from=new Date(Date.parse(today)-29*86400000).toISOString().slice(0,10);
+ const miles=num(v.loaded,'loaded miles')+num(v.empty,'empty miles');
+ const own=fuelEconomy(rows,t,from,today),fleet=fuelEconomy(rows,null,from,today);
+ const result={from,to:today,miles};
+ for(const k of ['diesel','def']){
+  const configured=k==='diesel'?Number(profile?.operating?.truck?.mpg):0;
+  const fallback=Number.isFinite(configured)&&configured>0?configured:null;
+  const mpg=own[k].mpg??fleet[k].mpg??fallback;
+  const source=own[k].mpg!==null?'Truck 30-day average':fleet[k].mpg!==null?'Company 30-day average':fallback!==null?'Configured diesel MPG':'No recorded average';
+  result[k]={mpg,source,gallons:mpg===null?null:miles/mpg};
+ }
+ return result;
+}
 function currentMileage(t,data,rows){
  const readings=[t.startingMiles,...data.mileage.filter(x=>x.truck===t.name||x.truck===t.id).map(x=>Number(x.odometer)).filter(n=>n>0),...activeFuelRows(rows,t).map(x=>x.fuel.odometer)].filter(n=>Number.isSafeInteger(n)&&n>=0);
  return readings.length?Math.max(...readings):null;
@@ -196,5 +213,5 @@ function deleteTruck(data,rows,profile,id){
  if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
  return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
 }
-return {activeFuelRows,fuelEconomy,currentMileage,fuelPurchase,loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
+return {activeFuelRows,fuelEconomy,loadFuelEstimate,currentMileage,fuelPurchase,loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
 })();
