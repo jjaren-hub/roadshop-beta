@@ -361,6 +361,34 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.goto(root+'account.html?switch=1');page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove Second fixture',exact:true}).click();await page.getByText('Business removed. Its records are saved under Archived businesses.').waitFor();assert((await localSpaces())[1].books['roadshop-workspace-archive-v1']);await page.locator('#archive-section summary').click();page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Restore Second fixture',exact:true}).click();await page.getByText('Business restored.').waitFor();assert(!(await localSpaces())[1].books['roadshop-workspace-archive-v1']);
    await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'billing.html');assert.equal(await historyToggle.getAttribute('aria-expanded'),'false');await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  }
+ if(job==='truck'){
+   const cached=await browser.newContext({storageState:await ctx.storageState({indexedDB:true}),serviceWorkers:'allow',viewport:{width:320,height:780},reducedMotion:'reduce'});
+   try{
+     await cached.route('https://*.supabase.co/**',r=>r.abort());
+     const installed=await cached.newPage();
+     await installed.goto(root);
+     await installed.evaluate(async()=>{await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready});
+     await installed.waitForFunction(()=>!!navigator.serviceWorker.controller);
+     await cached.setOffline(true);
+     // Keep the OS offline signal consistent across navigations on headless
+     // Chromium versions that reset it while the transport remains offline.
+     await cached.addInitScript(()=>Object.defineProperty(navigator,'onLine',{get:()=>false}));
+     await installed.goto(root+'trucking.html');
+     await installed.getByRole('button',{name:'Trucks & mileage',exact:true}).click();
+     const toggle=installed.getByRole('button',{name:'Toggle Add truck',exact:true});
+     for(const [width,theme] of [[320,'light'],[390,'dark'],[1280,'light'],[1280,'dark']]){
+       await installed.setViewportSize({width,height:820});
+       await installed.evaluate(t=>RoadTheme.set(t),theme);
+       assert.equal(await installed.evaluate(()=>document.documentElement.dataset.theme),theme);
+       const metrics=await toggle.evaluate(b=>({height:b.getBoundingClientRect().height,fits:document.documentElement.scrollWidth<=innerWidth}));
+       assert(metrics.height>=44 && metrics.fits,'Card must fit viewport and keep a 44px touch target at '+width);
+     }
+     await toggle.click();
+     await installed.reload();await installed.getByRole('button',{name:'Trucks & mileage',exact:true}).click();
+     assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+     console.log('PASS installed app offline reload, card persistence, 320/390/1280px layouts and light/dark themes');
+   }finally{await cached.close()}
+ }
  await page.goto(root+'admin.html');await page.getByText('Administrator access is required.').waitFor();
  await page.goto(root+'workspace.html?home=1');await page.getByRole('button',{name:'Log out',exact:true}).click();await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#credentials').waitFor();assert.deepEqual(errors,[]);
  await ctx.close();console.log('PASS browser workflows: '+(sub||label));

@@ -22,13 +22,18 @@ Beta repository `jjaren-hub/roadshop-beta`. Implementation branch `feature/works
 
 - Mobile mechanic passed, including actual part purchases, payment corrections, PDF/print, backup recovery and quote archive/restore. The repair-shop run exposed an existing out-of-scope variable in the split-entry UI. Moved the quick-entry explanatory note back to its owning editor. No accounting calculation changed. Re-running all profiles.
 
-### In progress and next steps
+### Browser verification milestone
 
-1. Finish the five-profile Chromium workflow with fictional authentication and financial records. Check account switching, workspace-specific state, mobile/desktop themes, print and PDF projections.
-2. Resolve any remaining failures. Re-run the affected suites and record results here.
-3. Integrate into beta main and verify published assets at https://jjaren-hub.github.io/roadshop-beta/ against the merged commit.
-4. Record deployment verification and remaining limitations here. Production deployment requires separate approval.
+- All five local Chromium profiles passed after the editor fixes: lease-purchase trucking, mobile mechanic, repair shop, general contractor and other business. The suite exercises financial creation/editing, authentication with a fictional backend, fresh-tab persistence, business switching, backups, offline vault sync, printing and PDF download/sharing.
+- A separate installed-app check passed with network access disabled and the new service worker controlling the page. Tested persisted card state after offline reload, both themes, reduced motion, and 320, 390 and 1280 px viewport widths. The harness supplies the offline OS indicator because local headless Chromium resets that signal during navigation.
+- No outstanding application failures from those runs. Testing uses synthetic accounts and records.
 
-Primary files are `cards.js`, `style.css`, `sw.js`, the workspace page scripts and HTML entry points, and `.github/qa/browser-auth-first.mjs`. Local reproduction follows `.github/workflows/prelaunch-qa.yml`. A Chromium executable can be supplied with `CHROMIUM_PATH`.
+### In progress and exact next steps
 
-Known outstanding work at this checkpoint is completion of browser testing and live beta verification.
+1. Run the complete browser suite with the additional installed-app check included and re-run automated suites on the final tree.
+2. Merge beta PR #8 into beta main after those checks pass.
+3. Compare the published service worker and its allowlisted assets against the merged release. Check the beta GitHub Actions browser run and record the outcome here.
+
+Primary files are `cards.js`, `style.css`, `sw.js`, the workspace page scripts and HTML entry points, and `.github/qa/browser-auth-first.mjs`. Local reproduction follows `.github/workflows/prelaunch-qa.yml`. Supply a Chromium executable with `CHROMIUM_PATH`.
+
+Published site: https://jjaren-hub.github.io/roadshop-beta/. Production deployment requires separate approval.
