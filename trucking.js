@@ -116,7 +116,7 @@ function perDiemCalendar(p){
  const daily=input(settings,'Daily rate ($)',perDiemRate,'number'),deduct=input(settings,'Deductible percentage',perDiemDeduct,'number'),notes=input(settings,'Tax home / supporting notes',perDiemNote);
  daily.oninput=()=>{perDiemRate=value(daily)};deduct.oninput=()=>{perDiemDeduct=value(deduct)};notes.oninput=()=>{perDiemNote=value(notes)};
  const toolbar=el(p,'div');toolbar.className='perdiem-toolbar';
- const shiftMonth=n=>{const [y,m]=perDiemMonth.split('-').map(Number);perDiemMonth=new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,7);draw()};
+ const shiftMonth=n=>{if(n>0&&perDiemMonth>=today().slice(0,7))return;const [y,m]=perDiemMonth.split('-').map(Number);perDiemMonth=new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,7);draw()};
  const prev=button(toolbar,'‹',()=>shiftMonth(-1));prev.setAttribute('aria-label','Previous month');
  const heading=el(toolbar,'strong');heading.setAttribute('aria-live','polite');
  const next=button(toolbar,'›',()=>shiftMonth(1));next.setAttribute('aria-label','Next month');
