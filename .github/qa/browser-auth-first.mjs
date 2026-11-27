@@ -20,10 +20,12 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await r.fulfill({status,headers,contentType:'application/json',body:JSON.stringify(result)})});
  const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
  await page.goto(root);await page.getByRole('heading',{name:'Know your numbers. Own your success.'}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('script[src*="cloud/"]').count(),0);await page.getByRole('link',{name:'Get started'}).first().click();await page.getByRole('heading',{name:'Create your EarnKeep account'}).waitFor();await page.locator('#guest').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(16, 22, 23)');await page.evaluate(()=>RoadTheme.set('light'));assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(16, 22, 23)');assert.equal(await page.evaluate(()=>RoadTheme.get()),'light');await page.reload();await page.locator('#guest').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('button[value=signup]')).backgroundColor),'rgb(192, 233, 120)');
- await page.goto(root+'finance.html');await page.waitForURL('**/account.html');await page.locator('#guest').waitFor();
+ await page.goto(root+'finance.html');await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#guest').waitFor();
  await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');if(job==='other'){
+   const expectedCallback=new URL(new URL(root).origin==='https://earnkeep.app'?'account':'account.html',root).href;
+   const oauth=page.waitForRequest(r=>new URL(r.url()).hostname==='fixture.supabase.co'&&new URL(r.url()).pathname.endsWith('/authorize'));await page.locator('#google').click();const oauthRequest=await oauth;assert.equal(new URL(oauthRequest.url()).searchParams.get('redirect_to'),expectedCallback);await page.waitForURL(url=>url.hostname==='fixture.supabase.co');await page.goto(root+'account.html');await page.locator('#guest').waitFor();await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');
    await page.locator('button[value=signup]').click();await page.getByText('Check your email for the verification link.').waitFor();await page.getByText('Need help signing in?').click();
-   for(const [id,path] of [['reset','recover'],['resend','resend']]){const response=page.waitForResponse(r=>r.url().includes('/auth/v1/'+path)&&r.request().method()==='POST');await page.locator('#'+id).click();assert.equal((await response).status(),200);await page.getByText('Check your email for the requested link.').waitFor();}
+   for(const [id,path] of [['reset','recover'],['resend','resend']]){const response=page.waitForResponse(r=>r.url().includes('/auth/v1/'+path)&&r.request().method()==='POST');await page.locator('#'+id).click();const result=await response;assert.equal(result.status(),200);assert.equal(new URL(result.request().url()).searchParams.get('redirect_to'),expectedCallback+(id==='reset'?'?flow=recovery':''));await page.getByText('Check your email for the requested link.').waitFor();}
    await page.locator('#password').fill('fictional-password');
  }
  await page.locator('button[value=login]').click();await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').click();
@@ -259,7 +261,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
     // Account switching opens the Ledger for completed mechanic workspaces, not the Dashboard.
     const switchMechanic=async (name,id)=>{
       await page.goto(root+'account.html?switch=1');
-      await Promise.all([page.waitForURL(url=>url.pathname.endsWith('/ledger.html')),button(name).click()]);
+      await Promise.all([page.waitForURL(url=>/\/ledger(?:\.html)?$/.test(url.pathname)),button(name).click()]);
       await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
       await page.waitForFunction(expected=>{try{return BookStore.id===expected&&!document.body.hasAttribute('data-auth-pending')}catch{return false}},id);
       assert.deepEqual(await page.evaluate(()=>({id:BookStore.id,owner:BookStore.ownerId,profile:JSON.parse(BookStore.getItem(Planning.key)).profile.business})),{id,owner:uid,profile:name});
@@ -283,7 +285,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.goto(root+'account.html?switch=1');await button('Fixture '+trade).click();await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();await page.goto(root+'reports.html');await page.getByRole('cell',{name:'$100.00',exact:true}).first().waitFor();
  }
  await page.goto(root+'admin.html');await page.getByText('Administrator access is required.').waitFor();
- await page.goto(root+'workspace.html?home=1');await page.getByRole('button',{name:'Log out',exact:true}).click();await page.waitForURL('**/account.html');await page.locator('#credentials').waitFor();assert.deepEqual(errors,[]);
+ await page.goto(root+'workspace.html?home=1');await page.getByRole('button',{name:'Log out',exact:true}).click();await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#credentials').waitFor();assert.deepEqual(errors,[]);
  await ctx.close();console.log('PASS browser workflows: '+(sub||label));
 }
 }finally{if(browser)await browser.close();server?.kill()}

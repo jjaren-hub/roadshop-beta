@@ -25,3 +25,8 @@ Additional QA: verify desktop and mobile logo geometry, actual canvas draw dimen
 
 ## 2026-11-27 — customer support cleanup
 - Remove the outdated customer-facing Release notes card from Help & support. Keep help topics, feedback, account deletion requests, support contacts and legal links unchanged. Retain internal development history; bump offline cache.
+
+## 2026-11-27 — production sign-in callback and service worker navigation
+- User confirmed that removing .html from the production OAuth callback resolved Chrome ERR_FAILED; user added both canonical production callback URLs to the existing Supabase allowlist. Generate canonical account and recovery callbacks for earnkeep.app only; retain GitHub Pages account.html callbacks.
+- Avoid returning redirected cached responses directly to navigation requests; preserve security headers and query strings, recognize actual extensionless cache aliases, let auth callback requests go straight to the network, and retain offline fallback. No local records are deleted and no authentication credentials or billing settings are changed.
+- Accept both production and beta navigation paths in browser tests, check fictional OAuth and email redirect targets, and exercise a real service worker against a local Cloudflare-style redirect server. Require beta validation before production promotion.

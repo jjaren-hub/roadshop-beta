@@ -4,7 +4,8 @@
   const api = window.cloudClient;
   const selection = 'roadshop-active-workspace';
   if (!api) return say('Cloud accounts are awaiting setup. Sign-in is required; existing browser records are unchanged.');
-  const redirect = new URL('account.html',location.href).href;
+  // Cloudflare Pages serves the production account route without .html; beta keeps its GitHub Pages route.
+  const redirect = new URL(location.origin==='https://earnkeep.app'?'account':'account.html',location.href).href;
   const query=new URLSearchParams(location.search);
   const recoveryCallback=query.get('flow')==='recovery';
   const switchMode=query.has('switch');

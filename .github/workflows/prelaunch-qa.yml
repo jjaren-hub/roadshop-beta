@@ -35,6 +35,8 @@ jobs:
           for name in release-static finance trucking mechanic insights tax-planning retention reconciliation quote-security commercial offline-vault; do
             node "tests/$name.mjs" || exit 1
           done
+      - name: Test service worker with Cloudflare-style HTML redirects
+        run: node tests/sw-navigation.mjs
       - name: Verify deployed beta bytes
         run: node .github/qa/verify-deployment.mjs
       - name: Run browser workflows on published beta using intercepted fictional backend
