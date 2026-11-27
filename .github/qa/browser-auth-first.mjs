@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';import {spawn} from 'node:child_process';import {chromium} from 'playwright-core';
+import assert from 'node:assert/strict';import {spawn} from 'node:child_process';import {createHash} from 'node:crypto';import {chromium} from 'playwright-core';
 const root=process.env.EARNKEEP_TEST_URL||'http://127.0.0.1:18749/',server=process.env.EARNKEEP_TEST_URL?null:spawn('python3',['-m','http.server','18749','--bind','127.0.0.1'],{stdio:'ignore'});let browser;
 try{
 if(server)for(let i=0;i<40;i++){try{if((await fetch(root)).ok)break}catch{}await new Promise(r=>setTimeout(r,100))}
@@ -6,13 +6,13 @@ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefin
 const uid='11111111-1111-4111-8111-111111111111',wid='22222222-2222-4222-8222-222222222222',user={id:uid,email:'fixture@example.invalid',aud:'authenticated',role:'authenticated',app_metadata:{provider:'email'},user_metadata:{},identities:[],created_at:'2026-01-01T00:00:00Z'};
 const enc=o=>Buffer.from(JSON.stringify(o)).toString('base64url'),token=enc({alg:'HS256'})+'.'+enc({sub:uid,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated'})+'.fixture',session={access_token:token,refresh_token:'fixture-only',expires_in:3600,token_type:'bearer',user};
 for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase operator','Trucking'],['mechanic','Mechanic','Mobile mechanic','Mechanic'],['mechanic','Mechanic','Repair shop','Mechanic'],['general','General independent contractor','','General contractor'],['other','Other self-employed business','','Other business']]){
- const ctx=await browser.newContext({viewport:sub==='Repair shop'||job==='other'?{width:1280,height:820}:{width:390,height:844},colorScheme:sub==='Repair shop'||job==='general'?'dark':'light',serviceWorkers:'block'});let signed=false;const errors=[];
+ const ctx=await browser.newContext({viewport:sub==='Repair shop'||job==='other'?{width:1280,height:820}:{width:390,height:844},colorScheme:sub==='Repair shop'||job==='general'?'dark':'light',serviceWorkers:'block'});let signed=false,expectedChallenge=null,pkceExchanges=0;const errors=[];
  await ctx.route('https://*.supabase.co/**',r=>r.abort());
  await ctx.route('**/cloud/config.js',r=>r.fulfill({contentType:'application/javascript',body:"window.roadshopCloud={url:'https://fixture.supabase.co',key:'sb_publishable_fixture'}"}));
  await ctx.route('https://fixture.supabase.co/**',async r=>{const req=r.request(),url=new URL(req.url()),method=req.method();let result={},status=200;const raw=req.postData();const data=raw?JSON.parse(raw):{};const headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PATCH,OPTIONS'};
  if(method==='OPTIONS')return r.fulfill({status:204,headers});
  if(url.pathname.endsWith('/signup'))result=user;
- else if(url.pathname.endsWith('/token')){signed=true;result=session}
+ else if(url.pathname.endsWith('/token')){if(url.searchParams.get('grant_type')==='pkce'){assert.equal(data.auth_code,'fictional-oauth-code');assert.equal(createHash('sha256').update(data.code_verifier).digest('base64url'),expectedChallenge);pkceExchanges++}signed=true;result=session}
  else if(url.pathname.endsWith('/user')){result=signed?user:{message:'Not signed in'};status=signed?200:401}
  else if(url.pathname.endsWith('/logout')){signed=false;result={}}
  else if(url.pathname.endsWith('/roadshop-commercial'))result=data.action==='status'?{enforcement:false,occupations:['truck','mechanic','general','other'],flags:{scanner:false,reports:true,offline:true},isAdmin:false,plans:[{code:'basic',name:'Basic',amount_cents:499},{code:'pro',name:'Pro',amount_cents:999}].map(p=>({...p,interval:'month',capabilities:{workspaces:1,ocr_pages:0,ai_questions:0}})),trialDays:7,trialEligible:true,checkoutEnabled:false,subscription:{status:'none'}}:data.action==='history'?{invoices:[],more:false}:{ok:true};
@@ -23,12 +23,23 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  await page.goto(root+'finance.html');await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#guest').waitFor();
  await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');if(job==='other'){
    const expectedCallback=new URL(new URL(root).origin==='https://earnkeep.app'?'account':'account.html',root).href;
-   const oauth=page.waitForRequest(r=>new URL(r.url()).hostname==='fixture.supabase.co'&&new URL(r.url()).pathname.endsWith('/authorize'));await page.locator('#google').click();const oauthRequest=await oauth;assert.equal(new URL(oauthRequest.url()).searchParams.get('redirect_to'),expectedCallback);await page.waitForURL(url=>url.hostname==='fixture.supabase.co');await page.goto(root+'account.html');await page.locator('#guest').waitFor();await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');
+   const canonicalCallback=new URL('account',root).href;
+   if(expectedCallback!==canonicalCallback)await ctx.route(url=>url.origin===new URL(root).origin&&url.pathname===new URL(canonicalCallback).pathname,async route=>{const response=await ctx.request.get(root+'account.html');await route.fulfill({response})});
+   const completeOAuth=async callback=>{
+     const count=pkceExchanges,oauth=page.waitForRequest(r=>new URL(r.url()).hostname==='fixture.supabase.co'&&new URL(r.url()).pathname.endsWith('/authorize'));
+     await page.locator('#google').click();const oauthRequest=await oauth;const params=new URL(oauthRequest.url()).searchParams;assert.equal(params.get('redirect_to'),expectedCallback);expectedChallenge=params.get('code_challenge');assert(expectedChallenge);
+     await page.waitForURL(url=>url.hostname==='fixture.supabase.co');await page.goto(callback+'?code=fictional-oauth-code');
+     await page.locator('#local-disclosure').waitFor();await page.waitForFunction(()=>!new URL(location.href).searchParams.has('code'));assert.equal(pkceExchanges,count+1);
+     assert.equal(await page.evaluate(async()=> (await cloudClient.auth.getSession()).data.session?.user.id),uid);
+   };
+   await completeOAuth(expectedCallback);
+   await page.evaluate(async()=>{const r=await cloudClient.auth.signOut({scope:'local'});if(r.error)throw r.error});
+   await page.goto(root+'account.html');await page.locator('#guest').waitFor();await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');
    await page.locator('button[value=signup]').click();await page.getByText('Check your email for the verification link.').waitFor();await page.getByText('Need help signing in?').click();
    for(const [id,path] of [['reset','recover'],['resend','resend']]){const response=page.waitForResponse(r=>r.url().includes('/auth/v1/'+path)&&r.request().method()==='POST');await page.locator('#'+id).click();const result=await response;assert.equal(result.status(),200);assert.equal(new URL(result.request().url()).searchParams.get('redirect_to'),expectedCallback+(id==='reset'?'?flow=recovery':''));await page.getByText('Check your email for the requested link.').waitFor();}
-   await page.locator('#password').fill('fictional-password');
+   await page.locator('#password').fill('fictional-password');await completeOAuth(canonicalCallback);console.log('PASS Google-style PKCE callback exchange, verifier, session and canonical URL');
  }
- await page.locator('button[value=login]').click();await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').click();
+ if(job!=='other')await page.locator('button[value=login]').click();await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').click();
  await page.getByLabel('Occupation',{exact:true}).selectOption(label);if(sub)await page.getByLabel('Type of business',{exact:true}).selectOption(sub);await page.getByLabel('Business name',{exact:true}).fill('Fixture '+trade);
  await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Operating costs',exact:true}).waitFor();if(job==='mechanic')await page.getByLabel('Shop supply charge ($/job)',{exact:true}).fill('12.50');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:job==='mechanic'?'Open ledger':'Open dashboard',exact:true}).click();
  if(job==='mechanic'){await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();await page.getByRole('link',{name:'Dashboard',exact:true}).click();}
