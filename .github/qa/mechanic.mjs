@@ -10,3 +10,23 @@ const calc=M.calculator({partCost:'100',markup:'30',overhead:'500',hours:'20',la
 const existing={id:'manual-1',date:'2026-11-25',trade:'Mechanic',type:'Expense',classification:'expense',category:'Parts purchased',cents:10000,ref:'receipt',note:'Actual purchase'};let fresh=M.createJob({...j,lines:j.lines},d,'job-2');fresh=M.status(fresh,'approved','customer accepted');throws(()=>M.cost(fresh,{id:'c2',date:existing.date,amount:'100',category:existing.category,note:'Receipt'},[existing],id));const linked=M.cost(fresh,{id:'c2',date:existing.date,amount:'100',category:existing.category,note:'Receipt',link:existing.id},[existing],id);eq(linked.rows.length,1);eq(linked.rows[0].job,'job-2');eq(F.total(validate(linked.rows)).expense,10000);
 const publicJson=JSON.stringify(M.publicDoc(j,{business:'Shop'},'invoice'));eq(publicJson.includes('actualPartsConfirmed'),false);eq(publicJson.includes('Filter receipt'),false);eq(M.publicDoc(j,{business:'Shop'},'invoice').outstanding,5000);return n}
 console.log('PASS mechanic core: '+run(M,F,validate)+' assertions');
+
+// Quote part sources never post an estimate; only a confirmed purchase can post or link.
+{
+ const d=M.blank();d.customers.push(M.customer({name:'Parts fixture'},'c'));d.vehicles.push(M.vehicle({customer:'c',model:'Truck'},'v',d.customers));
+ const j=M.createJob({customer:'c',vehicle:'v',issued:'2026-11-25',expires:'2026-12-01',description:'Parts',lines:[{id:'stock',type:'part',label:'Stock filter',qty:'1',cost:'20',partSource:'inventory'},{id:'buy',type:'part',label:'New belt',qty:'2',cost:'25',partSource:'purchase'}]},d,'parts-job');
+ const v={date:'2026-11-25',amount:'50',note:'Belt receipt',link:''};let seq=0;const id=()=> 'part-test-'+(++seq);
+ const check=(ok,msg)=>{if(!ok)throw Error(msg)};const fail=fn=>{let failed=false;try{fn()}catch{failed=true}check(failed,'Expected rejection')};
+ check(j.costs.length===0&&M.quote(j).partCost===7000,'Quote pricing alone is not a receipt');
+ fail(()=>M.partPurchase(j,{id:'stock',source:'inventory'},v,[],id));
+ const a=M.partPurchase(j,{id:'buy',source:'purchase'},v,[],id);check(a.job.status==='draft'&&F.total(validate(a.rows)).expense===5000,'Actual draft purchase');
+ fail(()=>M.partPurchase(a.job,{id:'buy',source:'purchase'},v,a.rows,id));
+ const existing={id:'manual-part',trade:'Mechanic',type:'Expense',classification:'expense',category:'Parts purchased',cents:5000,date:v.date,ref:'receipt',note:'Belt receipt'};
+ fail(()=>M.partPurchase(j,{id:'buy',source:'purchase'},v,[existing],id));
+ const linked=M.partPurchase(j,{id:'buy',source:'purchase'},{...v,link:existing.id},[existing],id);check(linked.rows.length===1&&F.total(validate(linked.rows)).expense===5000,'Link not duplicate');
+ check(!JSON.stringify(M.publicDoc(j,{business:'Shop'})).includes('partSource'),'Private source omitted');
+ const approved=M.status(j,'approved','Signed');const manual=M.cost(approved,{...v,id:'manual-cost',category:'Parts purchased'},[],id);
+ fail(()=>M.partPurchase(manual.job,{id:'buy',source:'purchase'},v,manual.rows,id));
+ const matched=M.partPurchase(manual.job,{id:'buy',source:'purchase'},{...v,link:'cost:manual-cost'},manual.rows,id);check(matched.rows.length===1&&matched.job.costs[0].partLine==='buy','Link existing job cost');
+ console.log('PASS confirmed part purchases, inventory, draft status and duplicate prevention');
+}
