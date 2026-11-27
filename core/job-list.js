@@ -58,6 +58,7 @@ function showJobList(parent, quotes, jobs, actions) {
       append(card,'p',[entry.quick?'Quick quote':'Work order',entry.record.removedAt?'Archived · '+entry.status:entry.status,entry.vehicle,entry.date].filter(Boolean).join(' · '));
       append(card,'p','Total '+Q.dollars(entry.total)+(entry.due===null?'':' · Balance due '+Q.dollars(entry.due)));
       actions(card,entry.record,entry.quick);
+      const open=card.querySelector(':scope > :is(a,button)');if(open)open.dataset.cardAction='';
     }
     if(!list.childElementCount)append(list,'p',term?'No matching jobs. Try another name or reference.':filter.value==='history'?'Paid, rejected and canceled jobs appear here.':'No jobs in this view yet.');
   }

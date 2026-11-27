@@ -60,7 +60,7 @@
  $('remember').onclick=()=>saveRates('markup','hourly');
  const scaled=value=>Math.round(Number(value)*100);
  const field=(div,key)=>div.querySelector('[data-field="'+key+'"]');
- function partSelect(parent,value=''){const l=el('label','Part source (private)'),select=el('select');select.dataset.field='partSource';for(const [key,text] of [['','Not decided'],['inventory','Already had / inventory'],['purchase','Buy for this job']])select.add(new Option(text,key));select.value=value||'';l.append(select);parent.append(l);return select}
+ function partSelect(parent,value=''){const l=el('label','Part source (private)'),select=el('select');select.dataset.field='partSource';select.setAttribute('aria-label','Part source (private)');for(const [key,text] of [['','Not decided'],['inventory','Already had / inventory'],['purchase','Buy for this job']])select.add(new Option(text,key));select.value=value||'';l.append(select);parent.append(l);return select}
  function item(line,kind='part'){
    if($('items').children.length>=12)return alert('A quote can contain up to 12 lines.');
    if(line)kind=['part','labor','mileage','supplies'].includes(line.kind)?line.kind:'manual';

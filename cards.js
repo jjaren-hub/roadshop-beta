@@ -26,7 +26,7 @@
   }
 
   function enhance(card) {
-    if (paths.has(card) || card.closest(excluded) || card.id === 'member') return;
+    if (paths.has(card) || card.closest('#member[hidden]') || card.closest(excluded) || card.id === 'member') return;
     const native = card.tagName === 'DETAILS';
     const header = card.querySelector(native ? ':scope > summary' : ':scope > :is(h2,h3)');
     if (native && card.querySelector('.customer-document')) return;
@@ -84,6 +84,8 @@
     if (document.body.hasAttribute('data-auth-pending')) return;
     ready.disconnect();
     scan(document.body);
+    const member = document.getElementById('member');
+    if (member) new MutationObserver(() => scan(member)).observe(member, {attributes:true, attributeFilter:['hidden']});
     new MutationObserver(records => {
       for (const record of records) for (const node of record.addedNodes) scan(node);
     }).observe(document.body, {childList:true, subtree:true});

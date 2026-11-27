@@ -352,6 +352,9 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  if(job==='other'){
    const historyToggle=button('Toggle Billing history');
    await page.goto(root+'billing.html');await historyToggle.click();assert.equal(await historyToggle.getAttribute('aria-expanded'),'false');
+   const reopened=await ctx.newPage();await reopened.goto(root+'billing.html');
+   assert.equal(await reopened.getByRole('button',{name:'Toggle Billing history',exact:true}).getAttribute('aria-expanded'),'false');
+   await reopened.close();
    await page.goto(root+'account.html?switch=1');await page.getByRole('heading',{name:'Your account'}).waitFor();await page.locator('#business').fill('Second fixture');await button('Create workspace').click();await page.getByRole('heading',{name:'Business profile'}).waitFor();
    await page.goto(root+'billing.html');assert.equal(await historyToggle.getAttribute('aria-expanded'),'true');
    assert.equal((await localSpaces()).length,2);assert.equal(((await localSpaces())[1].books['roadshop-ledger-v1']||[]).length,0);

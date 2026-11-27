@@ -18,6 +18,10 @@ Beta repository `jjaren-hub/roadshop-beta`. Implementation branch `feature/works
 - During browser testing, an immediate refresh lost native disclosure changes. Fixed persistence by observing changes to the open attribute. The trucking workflow subsequently passed including the full → partial → cleared calendar cycle, draft retention, keyboard toggles and simultaneous open cards.
 - Fixed the accessible name for generated Finance selects. Updated the backup deletion test to expand the newly collapsed section.
 
+- The mechanic browser run reached PDF/print, logo recovery and business isolation. It then failed to locate the quick quote part-source selector by its exact label. Added its explicit accessible name and started a full rerun. Also kept primary mechanic creation shortcuts and the offline vault lock available on closed cards.
+
+- Mobile mechanic passed, including actual part purchases, payment corrections, PDF/print, backup recovery and quote archive/restore. The repair-shop run exposed an existing out-of-scope variable in the split-entry UI. Moved the quick-entry explanatory note back to its owning editor. No accounting calculation changed. Re-running all profiles.
+
 ### In progress and next steps
 
 1. Finish the five-profile Chromium workflow with fictional authentication and financial records. Check account switching, workspace-specific state, mobile/desktop themes, print and PDF projections.
@@ -25,6 +29,6 @@ Beta repository `jjaren-hub/roadshop-beta`. Implementation branch `feature/works
 3. Integrate into beta main and verify published assets at https://jjaren-hub.github.io/roadshop-beta/ against the merged commit.
 4. Record deployment verification and remaining limitations here. Production deployment requires separate approval.
 
-Primary files are `cards.js`, `style.css`, `sw.js`, the workspace page scripts and HTML entry points, and `.github/qa/browser-auth-first.mjs`. Local reproduction follows `.github/workflows/beta-qa.yml`. A Chromium executable can be supplied with `CHROMIUM_PATH`.
+Primary files are `cards.js`, `style.css`, `sw.js`, the workspace page scripts and HTML entry points, and `.github/qa/browser-auth-first.mjs`. Local reproduction follows `.github/workflows/prelaunch-qa.yml`. A Chromium executable can be supplied with `CHROMIUM_PATH`.
 
 Known outstanding work at this checkpoint is completion of browser testing and live beta verification.
