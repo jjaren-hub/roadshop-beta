@@ -1,39 +1,33 @@
 # EarnKeep beta development status
 
-## Shared collapsible cards
+## Collapsible card upgrade — deployed and verified
 
-Beta repository `jjaren-hub/roadshop-beta`. Implementation branch `feature/workspace-card-disclosures`. Integration branch `main`. Starting beta commit `06b3ba1`.
+Beta PR [#8](https://github.com/jjaren-hub/roadshop-beta/pull/8) merged into `jjaren-hub/roadshop-beta:main` at `6650bf88f70210ad2e83ff0490d4025213d22743`. Development started from `06b3ba1` on `feature/workspace-card-disclosures`. The implementation, regression fixes and offline/viewport tests are in `f8f288f`, `98ce6af` and `5ab8295`, respectively.
 
 ### Completed
 
-- Audited the authenticated application pages, account tools, landing and legal pages, offline entry, and customer document surfaces.
-- Added shared card headers and chevrons, independent per-workspace local preferences, keyboard operation, draft-preserving toggles and print rules. Retained the calendar and IFTA defaults.
-- Integrated dynamic cards and repeated record identities across workspaces. Kept disclosure gates, required onboarding, navigation, ledger row editing and customer documents outside the card toggles.
-- Updated the service worker precache. Added Chromium regression checks to the existing browser workflows.
+- Integrated a shared disclosure component on business dashboard, trucking, mechanic, ledger, finance, quote, reporting, insights, tax, account, billing, support, backup and offline-entry pages. Preferences are local to the owner and workspace. Record-backed cards use stable identifiers where available.
+- Added full-width keyboard-operable headers, chevrons, theme-aware styles, mobile touch targets, stacked form labels and independent expansion. Collapsing leaves form controls mounted. Current work and the Per Diem Calendar start open. IFTA and selected secondary sections start closed.
+- Kept required setup and tax acknowledgment, navigation, critical notices and primary workflow shortcuts accessible. Customer-facing documents retain their print/PDF templates.
+- Updated the service worker to precache the shared component. The published service worker and all 67 distinct precached files matched beta main byte for byte.
 
-### Tests and fixes
+### Tests passed
 
-- Passed locally: release-static, finance, trucking, mechanic, insights, tax-planning, retention, reconciliation, quote-security, commercial and offline-vault suites.
-- Passed in headless Chromium: service-worker redirect handling, offline navigation, authentication callbacks and cache isolation.
-- During browser testing, an immediate refresh lost native disclosure changes. Fixed persistence by observing changes to the open attribute. The trucking workflow subsequently passed including the full → partial → cleared calendar cycle, draft retention, keyboard toggles and simultaneous open cards.
-- Fixed the accessible name for generated Finance selects. Updated the backup deletion test to expand the newly collapsed section.
+- Local and hosted beta quality gates passed all 11 static and domain suites, the service-worker navigation suite and the five-profile browser suite. Profiles cover lease-purchase trucking, mobile mechanic, repair shop, general contractor and other business. [Hosted beta quality gate](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46048274852)
+- Exercised card taps and keyboard operation, simultaneous expansion, unsaved inputs, refresh, fresh-tab reopening, workspace isolation, full/partial/cleared per diem, financial record creation/editing, sign-in and business switching.
+- Exercised backups and recovery, offline entry/merge, service-worker-controlled offline reload, 320/390/1280 px widths, light/dark themes, print layouts, and PDF download and sharing. Browser checks use Chromium and fictional accounts, providers and financial records. For the installed-app test, the transport is offline and the harness supplies the OS offline signal across navigations.
 
-- The mechanic browser run reached PDF/print, logo recovery and business isolation. It then failed to locate the quick quote part-source selector by its exact label. Added its explicit accessible name and started a full rerun. Also kept primary mechanic creation shortcuts and the offline vault lock available on closed cards.
+### Failures found and resolved
 
-- Mobile mechanic passed, including actual part purchases, payment corrections, PDF/print, backup recovery and quote archive/restore. The repair-shop run exposed an existing out-of-scope variable in the split-entry UI. Moved the quick-entry explanatory note back to its owning editor. No accounting calculation changed. Re-running all profiles.
+- Immediate refresh could precede the native disclosure toggle event. Persisting the open-attribute change fixed the calendar-state failure.
+- Finance classification and quick-quote part-source selects lacked unambiguous accessible labels. Added explicit labels.
+- A pre-existing quick-entry note in the split-line builder referenced variables outside that function. Moved the note to its owning editor. The split transaction save/edit tests passed.
+- Adjusted the backup deletion test to expand the newly collapsed section before interacting with it.
 
-### Browser verification milestone
+### Current work, unresolved issues and next steps
 
-- All five local Chromium profiles passed after the editor fixes: lease-purchase trucking, mobile mechanic, repair shop, general contractor and other business. The suite exercises financial creation/editing, authentication with a fictional backend, fresh-tab persistence, business switching, backups, offline vault sync, printing and PDF download/sharing.
-- A separate installed-app check passed with network access disabled and the new service worker controlling the page. Tested persisted card state after offline reload, both themes, reduced motion, and 320, 390 and 1280 px viewport widths. The harness supplies the offline OS indicator because local headless Chromium resets that signal during navigation.
-- No outstanding application failures from those runs. Testing uses synthetic accounts and records.
+The beta task is complete. No known unresolved regressions from this review. Verification covered Chromium with simulated device sizes and authentication. Physical-device Safari, Android WebView and live third-party sign-in were outside the executed tests.
 
-### In progress and exact next steps
+Start future beta work from current beta `main`. Reproduce the verification using `.github/workflows/prelaunch-qa.yml`, including the browser suite in `.github/qa/browser-auth-first.mjs`. Use `CHROMIUM_PATH` for an existing Chromium installation. Production promotion requires a separate explicit instruction.
 
-1. Run the complete browser suite with the additional installed-app check included and re-run automated suites on the final tree.
-2. Merge beta PR #8 into beta main after those checks pass.
-3. Compare the published service worker and its allowlisted assets against the merged release. Check the beta GitHub Actions browser run and record the outcome here.
-
-Primary files are `cards.js`, `style.css`, `sw.js`, the workspace page scripts and HTML entry points, and `.github/qa/browser-auth-first.mjs`. Local reproduction follows `.github/workflows/prelaunch-qa.yml`. Supply a Chromium executable with `CHROMIUM_PATH`.
-
-Published site: https://jjaren-hub.github.io/roadshop-beta/. Production deployment requires separate approval.
+Implementation entry points are `cards.js`, `style.css`, `sw.js`, the HTML entry points and their corresponding workspace scripts. [Open the deployed beta](https://jjaren-hub.github.io/roadshop-beta/)
