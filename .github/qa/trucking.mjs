@@ -60,3 +60,17 @@ console.log('PASS load records, stages, revenue, payment date, duplicate prevent
  for(const change of [{odometer:'1749'},{truckId:'truck-b'},{date:'2026-11-26'},{dieselPrice:'0'}]){let rejected=false;try{T.fuelPurchase({...v,...change},d,q.added,'2026-11-27',uid)}catch{rejected=true}if(!rejected)throw Error('Invalid fuel purchase accepted.');}
  console.log('PASS fuel purchase calculations, chronological guard, load/truck isolation and current mileage');
 }
+
+
+{
+ const d=T.blank();d.trucks=[{id:'economy-a',name:'A',startingMiles:1000},{id:'economy-b',name:'B',startingMiles:2000}];
+ let n=0;const id=()=>'economy-'+(++n),v={date:'2026-11-27',location:'Fixture',dieselPrice:'4.00',defPrice:'3.00',loadId:''};
+ const a=T.fuelPurchase({...v,truckId:'economy-a',odometer:'1750',dieselGallons:'100',defGallons:'5'},d,[],v.date,id);
+ const b=T.fuelPurchase({...v,truckId:'economy-b',odometer:'2250',dieselGallons:'50',defGallons:'2'},d,a.added,v.date,id);
+ const rows=[...a.added,...b.added],fleet=T.fuelEconomy(rows),one=T.fuelEconomy(rows,d.trucks[0]);
+ if(Math.abs(fleet.diesel.mpg-1000/150)>1e-9||Math.abs(fleet.def.mpg-1000/7)>1e-9||one.diesel.mpg!==7.5||one.def.mpg!==150)throw Error('Weighted fleet fuel economy failed.');
+ if(T.fuelEconomy(rows,null,'2026-11-28').diesel.mpg!==null)throw Error('Date filter failed.');
+ const undone={...a.added[0],id:id(),sign:-1,reversalOf:a.added[0].id};
+ if(T.fuelEconomy([...rows,undone]).diesel.mpg!==5)throw Error('Reversed fuel purchase included.');
+ console.log('PASS weighted fuel economy, independent trucks, date filters and reversals');
+}
