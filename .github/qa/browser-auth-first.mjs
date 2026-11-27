@@ -79,8 +79,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
      await page.locator('#truck-editor').getByRole('button',{name:'Add your first truck',exact:true}).waitFor();
      await tabs.getByRole('link',{name:'Add Fuel',exact:true}).click();
      await page.getByRole('dialog',{name:'Add Fuel',exact:true}).waitFor();
-     assert.equal(await page.getByLabel('Category (custom allowed)',{exact:true}).inputValue(),'Diesel');
-     assert.equal(await page.getByLabel('Accounting classification',{exact:true}).inputValue(),'expense');
+     await page.getByText('Add a truck before recording fuel.',{exact:true}).waitFor();
      await page.getByRole('button',{name:'Cancel',exact:true}).click();
      await tabs.getByRole('link',{name:'Add expense',exact:true}).click();
      await page.getByRole('dialog',{name:'Add expense',exact:true}).waitFor();
@@ -254,6 +253,17 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,beforeLoad);await button('Open load').click();page.once('dialog',d=>d.accept());await button('Mark paid').click();await page.getByRole('heading',{name:'Load L-100 · Paid',exact:true}).waitFor();
    const loadRows=(await localSpaces())[0].books['roadshop-ledger-v1'];assert.equal(loadRows.length,beforeLoad+2);assert.equal(loadRows.filter(r=>r.ref==='L-100').reduce((n,r)=>n+r.cents,0),201000);
    await page.goto(root+'trucking.html?tab=loads');await page.getByRole('heading',{name:'Load L-100 · Paid',exact:true}).waitFor();await button('View load').click();assert(await page.getByLabel('Load stage',{exact:true}).isDisabled());assert.equal(await button('Mark paid').count(),0);
+   await page.getByRole('navigation',{name:'Business navigation'}).getByRole('link',{name:'Add Fuel',exact:true}).click();
+   const fuelDialog=page.getByRole('dialog',{name:'Add Fuel',exact:true});await fuelDialog.waitFor();
+   for(const [label,value] of [['Location','Fixture fuel stop'],['Diesel gallons','100'],['Diesel price ($/gal)','4.259'],['DEF gallons','5'],['DEF price ($/gal)','3.50'],['Truck odometer','750']])await fuelDialog.getByLabel(label,{exact:true}).fill(value);
+   await fuelDialog.getByLabel('Load number',{exact:true}).selectOption({label:'L-100'});
+   assert.equal(await fuelDialog.getByLabel('Diesel MPG',{exact:true}).inputValue(),'7.50');assert.equal(await fuelDialog.getByLabel('DEF MPG',{exact:true}).inputValue(),'150.00');
+   await button('Save fuel purchase').click();await fuelDialog.waitFor({state:'detached'});
+   const fuelRows=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.source==='trucking-fuel');assert.equal(fuelRows.length,2);assert.equal(fuelRows.reduce((n,r)=>n+r.cents,0),44340);assert(fuelRows.every(r=>r.ref==='L-100'&&r.fuel.loadId&&r.fuel.odometer===750));
+   await page.goto(root+'trucking.html?tab=fleet');await button('Edit truck Load fixture truck').click();assert.equal(await page.getByLabel('Current mileage',{exact:true}).inputValue(),'750');
+   await page.goto(root+'trucking.html?tab=loads');await button('View load').click();await page.getByText('Total linked fuel expense: $443.40',{exact:true}).waitFor();
+   console.log('PASS diesel and DEF purchase, load links, MPG and truck odometer');
+
 
  }
  if(job==='general'){
