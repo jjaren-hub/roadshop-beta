@@ -48,19 +48,7 @@ function reconciliation(selectedId) {
     el(entry,'p','Use a positive amount for money in and a minus sign for money out. Match each line to one or more ledger entries.');
     const date=input(entry,'Statement date',statement.month+'-01','date'),description=input(entry,'Statement description'),amount=input(entry,'Signed amount ($)');
     button(entry,'Add statement line',()=>addLines([R.statementLine(date.value,description.value,amount.value,statement.month)]));
-    const imp=el(entry,'details');el(imp,'summary','Import statement CSV');
-    el(imp,'p','Use columns date,description,amount with dates as YYYY-MM-DD and signed dollar amounts. Import one statement month at a time.');
-    const upload=input(imp,'Statement CSV','','file');upload.accept='.csv,text/csv';
-    button(imp,'Import lines',async()=>{
-      const file=upload.files[0];if(!file||file.size>1000000)throw Error('Choose a CSV file up to 1 MB.');
-      const [head,...records]=F.csvParse((await file.text()).replace(/^\uFEFF/,''));
-      const columns=['date','description','amount'].map(key=>head?.findIndex(h=>h.trim().toLowerCase()===key)??-1);
-      if(columns.includes(-1))throw Error('The CSV needs date, description and amount columns.');
-      const imported=records.filter(r=>r.some(v=>v.trim())).map(r=>R.statementLine(...columns.map(i=>r[i]||''),statement.month));
-      if(!imported.length)throw Error('The CSV has no statement lines.');
-      if(imported.some(l=>statement.lines.some(x=>x.date===l.date&&x.description===l.description&&x.cents===l.cents)))throw Error('The file overlaps saved lines. Import only new rows or enter a distinct repeat manually.');
-      if(confirm('Add '+imported.length+' statement lines?'))await addLines(imported);
-    });
+
   }
   async function addLines(lines) {
     if(statement.lines.length+lines.length>1000)throw Error('Use up to 1,000 lines per statement.');
