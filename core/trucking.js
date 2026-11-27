@@ -25,6 +25,48 @@ const stated=money(expected.replace(/^-/,'') )*(expected.startsWith('-')?-1:1);
 return {gross,deductions,credits,net,stated,difference:net-stated,lines};}
 function duplicate(s,existing){return existing.find(x=>x.id!==s.id&&((normalize(x.carrier)===normalize(s.carrier)&&normalize(x.number)===normalize(s.number))||(s.document?.hash&&x.document?.hash===s.document.hash)));}
 function row({id,date,truck,category,classification,cents,ref='',note='',source='',externalId='',settlement='',equipment=''}){const type=classification==='revenue'?'Income':['expense','interest'].includes(classification)?'Expense':'Transfer';return F.check({id,date,trade:'Trucking',type,category:clean(category),classification,cents,ref:clean(ref),note:clean(note,250),vehicle:clean(truck,180),equipment:clean(equipment,180),settlement:clean(settlement,180),source,externalId,audit:F.audit({},'created',source||'Trucking module')});}
+const loadStages=['Planned','Picked up','Delivered','Paid'];
+function loadRevenue(v){
+ const loaded=num(v.loaded,'loaded miles'),empty=num(v.empty,'empty miles'),linehaul=num(v.linehaul,'linehaul rate'),fsc=num(v.fsc,'fuel surcharge rate');
+ if(!loaded)throw Error('Enter loaded miles greater than zero.');
+ const linehaulCents=round(loaded*linehaul*100),fscCents=round(loaded*fsc*100),total=round(linehaulCents+fscCents);
+ if(total&&!F.safe(total))throw Error('Load revenue is outside the supported range.');
+ return {loaded,empty,linehaul,fsc,linehaulCents,fscCents,total};
+}
+function loadRecord(v,existing,today,id){
+ requireDate(today);const old=existing.find(x=>x.kind==='record'&&x.id===id);
+ if(old?.stage==='Paid')throw Error('Paid loads are locked to preserve ledger history.');
+ const number=clean(v.number,100),truck=clean(v.truck,100),pickupCity=clean(v.pickupCity,150),deliveryCity=clean(v.deliveryCity,150);
+ if(!number||!truck||!pickupCity||!deliveryCity)throw Error('Enter load number, truck, pickup city and delivery city.');
+ if(existing.some(x=>x.kind==='record'&&x.id!==id&&normalize(x.number)===normalize(number)))throw Error('This load number is already recorded.');
+ requireDate(v.pickupDate);requireDate(v.deliveryDate);if(v.deliveryDate<v.pickupDate)throw Error('Delivery cannot precede pickup.');
+ if(!loadStages.slice(0,3).includes(v.stage))throw Error('Choose Planned, Picked up or Delivered.');
+ if(v.stage!=='Planned'&&v.pickupDate>today||v.stage==='Delivered'&&v.deliveryDate>today)throw Error('Actual pickup or delivery cannot be in the future.');
+ if(v.linehaul===''||v.linehaul==null||v.fsc===''||v.fsc==null)throw Error('Enter both rates; use zero if not applicable.');
+ const revenue=loadRevenue(v);
+ return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue};
+}
+function loadPaymentParts(load){const q=loadRevenue(load);return [['Linehaul',q.linehaulCents],['Fuel surcharge',q.fscCents]].filter(([,cents])=>cents>0);}
+function loadPaymentMatches(load,ledger,date,category,cents){
+ return ledger.filter(r=>r.trade==='Trucking'&&(!r.vehicle||r.vehicle===load.truck)&&r.sign!==-1&&!r.reversalOf&&!r.splits?.length&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&F.kind(r)==='revenue'&&normalize(r.category)===normalize(category)&&r.cents===cents&&(r.date===date||normalize(r.ref)===normalize(load.number)));
+}
+function payLoad(load,loads,ledger,date,today,links={},newId){
+ if(load.kind!=='record'||load.stage!=='Delivered'||!loads.some(x=>x.id===load.id&&x.stage==='Delivered'))throw Error('Only an unpaid delivered load can be marked paid.');
+ requireDate(date);requireDate(today);if(date<load.deliveryDate||date>today)throw Error('Payment date must be on or after delivery and not in the future.');
+ if(!loadRevenue(load).total)throw Error('Enter positive revenue before recording payment.');
+ if(ledger.some(r=>r.source==='trucking-load'&&r.externalId?.startsWith(load.id+'-')))throw Error('Load payment already exists.');
+ const used=new Set(loads.flatMap(x=>x.ledgerIds||[])),added=[],ids=[];
+ for(const [category,cents] of loadPaymentParts(load)){
+  const matches=loadPaymentMatches(load,ledger,date,category,cents);
+  if(links[category]&&links[category]!=='new'){
+   const r=matches.find(x=>x.id===links[category]);if(!r||r.date!==date||used.has(r.id))throw Error('Existing entry must match payment date, truck, category and amount and cannot belong to another load.');
+   ids.push(r.id);used.add(r.id);continue;
+  }
+  if(matches.length&&links[category]!=='new')throw Error('Possible duplicate '+category+'. Link the existing ledger entry or explicitly confirm a separate payment.');
+  const r=row({id:newId(),date,truck:load.truck,category,classification:'revenue',cents,ref:load.number,note:'Load '+load.number,source:'trucking-load',externalId:load.id+'-'+(category==='Linehaul'?'linehaul':'fsc')});added.push(r);ids.push(r.id);
+ }
+ return {record:{...load,stage:'Paid',paidDate:date,ledgerIds:ids},rows:[...ledger,...added]};
+}
 function candidates(s,l,ledger){return ledger.filter(r=>r.trade==='Trucking'&&r.date===s.date&&(!r.vehicle||r.vehicle===s.truck)&&!r.settlement&&r.sign!==-1&&!r.splits?.length&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&r.cents===l.cents&&F.kind(r)===l.classification&&normalize(r.category)===normalize(l.category));}
 function post(s,existing,ledger,id){
 const result=settlement(s);if(result.difference!==0)throw Error('Settlement must reconcile to the cent before posting.');if(duplicate(s,existing)||existing.some(x=>x.id===s.id&&x.posted)||ledger.some(x=>x.settlement===s.id))throw Error('Duplicate or already posted settlement.');
@@ -117,5 +159,5 @@ function deleteTruck(data,rows,profile,id){
  if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
  return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
 }
-return {defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
+return {loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,repairRows,travel,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
 })();
