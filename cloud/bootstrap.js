@@ -10,7 +10,7 @@ BookStore.start().then(async ready=>{
   if((entry!=='workspace.js' && !profile?.complete) || (entry==='app.js' && !mechanicHome && !new URLSearchParams(location.search).has('ledger')) || (entry==='trucking.js' && profile?.job!=='truck') || (entry==='mechanic.js' && profile?.job!=='mechanic')){
     location.replace(profile?.complete?'workspace.html?home=1':'workspace.html');return;
   }
-  if(businessReady) installBusinessTabs(entry);
+  if(businessReady) installBusinessTabs(entry,profile.job);
   const logout=document.getElementById('signout');
   if(window.cloudClient && logout){
     logout.hidden=false;
@@ -30,18 +30,21 @@ BookStore.start().then(async ready=>{
   script.onerror=()=>{window.removeEventListener('error',initializationError);showAuthError(Error('Could not load the workspace. Reload and try again.'));};
   document.body.append(script);
 }).catch(showAuthError);
-function installBusinessTabs(entry){
+function businessShortcut(job){
+  return job==='truck'?{label:'Settlements',href:'trucking.html?tab=settlements',entry:'trucking.js'}:{label:'Quotes',href:'quotes.html',entry:'quotes.js'};
+}
+function installBusinessTabs(entry,job){
   // Use the existing Ledger button on the ledger page so its settings view still works.
   const nav=document.querySelector('body > nav')||document.createElement('nav');
   const ledger=entry==='app.js'?document.getElementById('home'):document.createElement('a');
   if(entry!=='app.js'){ledger.href='ledger.html?ledger';ledger.textContent='Ledger';}
-  const quote=document.createElement('a');quote.href='quotes.html';quote.textContent='Quotes';
-  ledger.classList.add('navlink');quote.className='navlink';
-  if(entry==='quotes.js')quote.setAttribute('aria-current','page');
+  const shortcut=businessShortcut(job),action=document.createElement('a');action.href=shortcut.href;action.textContent=shortcut.label;action.dataset.businessShortcut=job;
+  ledger.classList.add('navlink');action.className='navlink';
+  if(entry===shortcut.entry&&(job!=='truck'||new URLSearchParams(location.search).get('tab')==='settlements'))action.setAttribute('aria-current','page');
   const settings=document.getElementById('account');
   if(entry==='app.js' && settings){document.querySelector('.workspace-heading .workspace-nav').append(settings);}
   nav.classList.add('mechanic-tabs','business-tabs');nav.setAttribute('aria-label','Business navigation');
-  nav.replaceChildren(ledger,quote);if(!nav.isConnected)document.body.append(nav);
+  nav.replaceChildren(ledger,action);if(!nav.isConnected)document.body.append(nav);
   document.body.classList.add('has-mechanic-tabs');
 }
 function showAuthError(error){if(typeof RoadCommercial!=='undefined')RoadCommercial.activity('error');
