@@ -1,11 +1,11 @@
 const Trucking=(()=>{
 const F=Finance;
 const defaults=[
-['Linehaul','revenue'],['Fuel surcharge','revenue'],['Detention','revenue'],['Layover','revenue'],['Bonus','revenue'],['Fuel reimbursement','revenue'],['Diesel','expense'],['DEF','expense'],['Insurance','expense'],['Lease payment','expense'],['Dispatch fees','expense'],['Maintenance escrow contribution','escrow_out'],['Tire escrow contribution','escrow_out'],['Maintenance escrow release','escrow_in'],['Tire escrow release','escrow_in'],['Advance repayment','principal'],['Advance received','owner_contribution'],['Truck principal','principal'],['Truck interest','interest'],['Repairs & maintenance','expense'],['Other income','revenue'],['Other expense','expense']];
+['Linehaul','revenue'],['Empty mile pay','revenue'],['Fuel surcharge','revenue'],['Detention','revenue'],['Layover','revenue'],['Bonus','revenue'],['Fuel reimbursement','revenue'],['Diesel','expense'],['DEF','expense'],['Insurance','expense'],['Lease payment','expense'],['Dispatch fees','expense'],['Maintenance escrow contribution','escrow_out'],['Tire escrow contribution','escrow_out'],['Maintenance escrow release','escrow_in'],['Tire escrow release','escrow_in'],['Advance repayment','principal'],['Advance received','owner_contribution'],['Truck principal','principal'],['Truck interest','interest'],['Repairs & maintenance','expense'],['Other income','revenue'],['Other expense','expense']];
 const presets=Object.fromEntries(defaults);
 const normalize=x=>String(x||'').trim().toLowerCase().replace(/\s+/g,' ');
 const standard=[
-[/reimburse|fuel rebate|fuel credit|fuel discount/,'Fuel reimbursement'],[/fuel surcharge|\bfsc\b/,'Fuel surcharge'],[/\bdef\b|diesel exhaust fluid/,'DEF'],[/comdata miscellaneous/,'DEF'],[/linehaul|line haul/,'Linehaul'],[/detention/,'Detention'],[/layover/,'Layover'],[/bonus/,'Bonus'],[/tire.*escrow.*(release|withdraw)/,'Tire escrow release'],[/maintenance.*escrow.*(release|withdraw)/,'Maintenance escrow release'],[/tire.*escrow/,'Tire escrow contribution'],[/maintenance.*escrow/,'Maintenance escrow contribution'],[/dispatch/,'Dispatch fees'],[/insurance/,'Insurance'],[/lease|truck payment/,'Lease payment'],[/diesel|fuel purchase/,'Diesel'],[/advance repayment/,'Advance repayment']];
+[/reimburse|fuel rebate|fuel credit|fuel discount/,'Fuel reimbursement'],[/fuel surcharge|\bfsc\b/,'Fuel surcharge'],[/\bdef\b|diesel exhaust fluid/,'DEF'],[/comdata miscellaneous/,'DEF'],[/empty mile|deadhead pay|deadhead mile/,'Empty mile pay'],[/linehaul|line haul/,'Linehaul'],[/detention/,'Detention'],[/layover/,'Layover'],[/bonus/,'Bonus'],[/tire.*escrow.*(release|withdraw)/,'Tire escrow release'],[/maintenance.*escrow.*(release|withdraw)/,'Maintenance escrow release'],[/tire.*escrow/,'Tire escrow contribution'],[/maintenance.*escrow/,'Maintenance escrow contribution'],[/dispatch/,'Dispatch fees'],[/insurance/,'Insurance'],[/lease|truck payment/,'Lease payment'],[/diesel|fuel purchase/,'Diesel'],[/advance repayment/,'Advance repayment']];
 const blank=()=>({version:1,trucks:[],settlements:[],rules:[],leases:[],loads:[],mileage:[],maintenance:[],perdiem:[],ifta:[]});
 function state(p){const v=p.trucking||blank();if(v.version!==1||Object.keys(blank()).some(k=>k!=='version'&&!Array.isArray(v[k])))throw Error('Invalid trucking records.');return structuredClone(v);}
 const money=n=>F.cents(n||'0');
@@ -81,11 +81,11 @@ function fuelPurchase(v,data,rows,today,id){
 }
 const loadStages=['Planned','Picked up','Delivered','Paid'];
 function loadRevenue(v){
- const loaded=num(v.loaded,'loaded miles'),empty=num(v.empty,'empty miles'),linehaul=num(v.linehaul,'linehaul rate'),fsc=num(v.fsc,'fuel surcharge rate');
+ const loaded=num(v.loaded,'loaded miles'),empty=num(v.empty,'empty miles'),linehaul=num(v.linehaul,'linehaul rate'),fsc=num(v.fsc,'fuel surcharge rate'),emptyRate=num(v.emptyRate,'empty mile rate');
  if(!loaded)throw Error('Enter loaded miles greater than zero.');
- const linehaulCents=round(loaded*linehaul*100),fscCents=round(loaded*fsc*100),total=round(linehaulCents+fscCents);
+ const linehaulCents=round(loaded*linehaul*100),fscCents=round(loaded*fsc*100),emptyCents=round(empty*emptyRate*100),total=round(linehaulCents+fscCents+emptyCents);
  if(total&&!F.safe(total))throw Error('Load revenue is outside the supported range.');
- return {loaded,empty,linehaul,fsc,linehaulCents,fscCents,total};
+ return {loaded,empty,linehaul,fsc,linehaulCents,fscCents,total,...(emptyRate?{emptyRate,emptyCents}:{})};
 }
 function loadRecord(v,existing,today,id){
  requireDate(today);const old=existing.find(x=>x.kind==='record'&&x.id===id);
@@ -100,7 +100,7 @@ function loadRecord(v,existing,today,id){
  const revenue=loadRevenue(v),comments=String(v.comments??old?.comments??'').trim();if(comments.length>2000)throw Error('Load comments must be 2,000 characters or fewer.');
  return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue,...(comments?{comments}:{})};
 }
-function loadPaymentParts(load){const q=loadRevenue(load);return [['Linehaul',q.linehaulCents],['Fuel surcharge',q.fscCents]].filter(([,cents])=>cents>0);}
+function loadPaymentParts(load){const q=loadRevenue(load);return [['Linehaul',q.linehaulCents],['Empty mile pay',q.emptyCents||0],['Fuel surcharge',q.fscCents]].filter(([,cents])=>cents>0);}
 function loadPaymentMatches(load,ledger,date,category,cents){
  return ledger.filter(r=>r.trade==='Trucking'&&(!r.vehicle||r.vehicle===load.truck)&&r.sign!==-1&&!r.reversalOf&&!r.splits?.length&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&F.kind(r)==='revenue'&&normalize(r.category)===normalize(category)&&r.cents===cents&&(r.date===date||normalize(r.ref)===normalize(load.number)));
 }
@@ -117,7 +117,7 @@ function payLoad(load,loads,ledger,date,today,links={},newId){
    ids.push(r.id);used.add(r.id);continue;
   }
   if(matches.length&&links[category]!=='new')throw Error('Possible duplicate '+category+'. Link the existing ledger entry or explicitly confirm a separate payment.');
-  const r=row({id:newId(),date,truck:load.truck,category,classification:'revenue',cents,ref:load.number,note:'Load '+load.number,source:'trucking-load',externalId:load.id+'-'+(category==='Linehaul'?'linehaul':'fsc')});added.push(r);ids.push(r.id);
+  const r=row({id:newId(),date,truck:load.truck,category,classification:'revenue',cents,ref:load.number,note:'Load '+load.number,source:'trucking-load',externalId:load.id+'-'+(category==='Linehaul'?'linehaul':category==='Empty mile pay'?'empty':'fsc')});added.push(r);ids.push(r.id);
  }
  return {record:{...load,stage:'Paid',paidDate:date,ledgerIds:ids},rows:[...ledger,...added]};
 }
@@ -147,13 +147,13 @@ if(F.classes[cls]?.[0]===-1){if(variable)extra+=amount;else fixed+=amount;}
 else if(F.classes[cls]?.[1]===-1)fixedReserve+=amount;
 }
 
-return {loaded,deadhead,mpg:o.mpg||'',fuel:o.fuel||0,discount:o.discount||0,linehaul:o.linehaul||0,fsc:o.fsc||0,dispatch:o.dispatch||0,reserve:o.escrow||0,fixed:fixed.toFixed(2),extra:extra.toFixed(2),fixedReserve:fixedReserve.toFixed(2),excluded,otherRevenue:0,goal:Math.max(num(g.weekly),num(g.monthly)*12/52).toFixed(2),days:o.days||5,baselineMiles:num(o.miles)||loaded+deadhead,alternativeDiscount:0,downtimeDays:0};}
-function calculate(v){const loaded=num(v.loaded),dead=num(v.deadhead),miles=loaded+dead,mpg=num(v.mpg),fuel=num(v.fuel),discount=num(v.discount),linehaul=num(v.linehaul),fsc=num(v.fsc),dispatch=num(v.dispatch)/100,reserve=num(v.reserve),fixed=money(v.fixed),extra=money(v.extra),fixedReserve=money(v.fixedReserve),other=money(v.otherRevenue),goal=money(v.goal),days=num(v.days),alt=num(v.alternativeDiscount),down=num(v.downtimeDays);
+return {loaded,deadhead,mpg:o.mpg||'',fuel:o.fuel||0,discount:o.discount||0,linehaul:o.linehaul||0,emptyRate:o.emptyRate||0,fsc:o.fsc||0,dispatch:o.dispatch||0,reserve:o.escrow||0,fixed:fixed.toFixed(2),extra:extra.toFixed(2),fixedReserve:fixedReserve.toFixed(2),excluded,otherRevenue:0,goal:Math.max(num(g.weekly),num(g.monthly)*12/52).toFixed(2),days:o.days||5,baselineMiles:num(o.miles)||loaded+deadhead,alternativeDiscount:0,downtimeDays:0};}
+function calculate(v){const loaded=num(v.loaded),dead=num(v.deadhead),miles=loaded+dead,mpg=num(v.mpg),fuel=num(v.fuel),discount=num(v.discount),linehaul=num(v.linehaul),emptyRate=num(v.emptyRate),fsc=num(v.fsc),dispatch=num(v.dispatch)/100,reserve=num(v.reserve),fixed=money(v.fixed),extra=money(v.extra),fixedReserve=money(v.fixedReserve),other=money(v.otherRevenue),goal=money(v.goal),days=num(v.days),alt=num(v.alternativeDiscount),down=num(v.downtimeDays);
 if(!mpg||dispatch>=1||discount>fuel||alt>fuel||!days||days>7)throw Error('MPG and working days must be positive, dispatch below 100%, discount no more than diesel price.');
-const gallons=miles/mpg, fuelCost=round(gallons*(fuel-discount)*100),gross=round(loaded*(linehaul+fsc)*100)+other,dispatchCost=round(gross*dispatch),cost=fixed+extra+fuelCost+dispatchCost,net=gross-cost,held=round(miles*reserve*100)+fixedReserve,available=net-held;
-const per=(n,d)=>d?n/d/100:null,ratio=miles?loaded/miles:0,unit=(linehaul+fsc)*ratio*(1-dispatch)-(fuel-discount)/mpg-reserve;
+const gallons=miles/mpg, fuelCost=round(gallons*(fuel-discount)*100),emptyRevenue=round(dead*emptyRate*100),gross=round(loaded*(linehaul+fsc)*100)+emptyRevenue+other,dispatchCost=round(gross*dispatch),cost=fixed+extra+fuelCost+dispatchCost,net=gross-cost,held=round(miles*reserve*100)+fixedReserve,available=net-held;
+const per=(n,d)=>d?n/d/100:null,ratio=miles?loaded/miles:0,unit=((linehaul+fsc)*ratio+emptyRate*(1-ratio))*(1-dispatch)-(fuel-discount)/mpg-reserve;
 const requiredGross=Math.max(0,(fixed+extra+fuelCost+held+goal)/(1-dispatch)-other);
-return {miles,gallons,gross,cost,net,held,available,fuelCost,dispatchCost,loadedRate:per(gross,loaded),rpm:per(gross,miles),cpm:per(cost,miles),ppm:per(net,miles),fuelPerMile:per(fuelCost,miles),deadheadCost:round(dead*(fuel-discount)/mpg*100),fscRevenue:round(loaded*fsc*100),breakEvenLoaded:loaded?Math.max(0,((fixed+extra+fuelCost)/(1-dispatch)-other)/100/loaded):null,requiredLoaded:loaded?requiredGross/100/loaded:null,requiredMiles:unit>0?Math.ceil(Math.max(0,(fixed+extra+fixedReserve+goal-other*(1-dispatch))/100)/unit):null,monthly:round(net*52/12),annual:round(net*52),downtimeCost:round(Math.max(0,gross-dispatchCost-fuelCost-held+fixedReserve)/days*down),alternativeFuelCost:round(gallons*(fuel-alt)*100),discountSavings:round(gallons*(alt-discount)*100)};}
+return {miles,gallons,gross,emptyRevenue,cost,net,held,available,fuelCost,dispatchCost,loadedRate:per(gross,loaded),rpm:per(gross,miles),cpm:per(cost,miles),ppm:per(net,miles),fuelPerMile:per(fuelCost,miles),deadheadCost:round(dead*(fuel-discount)/mpg*100),fscRevenue:round(loaded*fsc*100),breakEvenLoaded:loaded?Math.max(0,((fixed+extra+fuelCost)/(1-dispatch)-other-emptyRevenue)/100/loaded):null,requiredLoaded:loaded?Math.max(0,requiredGross-emptyRevenue)/100/loaded:null,requiredMiles:unit>0?Math.ceil(Math.max(0,(fixed+extra+fixedReserve+goal-other*(1-dispatch))/100)/unit):null,monthly:round(net*52/12),annual:round(net*52),downtimeCost:round(Math.max(0,gross-dispatchCost-fuelCost-held+fixedReserve)/days*down),alternativeFuelCost:round(gallons*(fuel-alt)*100),discountSavings:round(gallons*(alt-discount)*100)};}
 function financing(v){const principal=money(v.principal),down=money(v.down),buyout=money(v.buyout),months=num(v.months),apr=num(v.apr)/1200;if(!Number.isInteger(months)||months<1||months>600||down>principal||apr>1||buyout>principal-down)throw Error('Check loan amount, down payment, term and balloon.');const balance=principal-down;const p=apr?(balance-buyout/Math.pow(1+apr,months))*apr/(1-Math.pow(1+apr,-months)):(balance-buyout)/months;return {payment:round(p),total:round(p*months)+buyout+down,interest:round(p*months)+buyout-balance};}
 function leasePurchase(v){const amount=money(v.amount),count=num(v.count),buyout=money(v.buyout),upfront=money(v.upfront);if(!F.safe(amount)||!Number.isInteger(count)||count<1||count>1500)throw Error('Enter a positive payment and valid payment count.');return {payments:round(amount*count),buyout,upfront,total:round(amount*count+buyout+upfront)};}
 function schedule(v){requireDate(v.due);const count=num(v.count),amount=money(v.amount);if(!Number.isInteger(count)||count<1||count>1500||!F.safe(amount)||!Object.hasOwn(F.schedules,v.frequency)||v.frequency==='Custom days'&&(!Number.isInteger(+v.interval)||+v.interval<1||+v.interval>3650))throw Error('Invalid payment schedule.');return {...v,count,cents:amount};}
