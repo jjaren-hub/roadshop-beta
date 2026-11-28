@@ -83,3 +83,11 @@
 - [Pages deployment 46100767447](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767447) and [beta QA 46100767991](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767991) started on that exact SHA.
 - Post-commit static recheck passed all 11 suites and the EIA parser. The suites report 234 counted assertions with additional checks reported by suite or scenario.
 - **Exact next action:** Wait for both beta runs. Verify all 69 published assets and obtain the actual published browser log. Establish the production rollback baseline using the deployed asset hashes and protected files.
+
+## Checkpoint 11 · Published assets matched and second-run browser timing issue
+
+- [Pages deployment 46100767447](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767447) completed successfully. The official byte step and a separate local run verified 69 hashes against the candidate. The official service-worker step passed.
+- Independent Chromium through the workspace network trust store reached the published site. An actual beta Google sign-in initiation sent the canonical beta callback with PKCE and returned a redirect from the real auth server to Google. The full exchange uses fictional interception.
+- QA-03: The independent published browser stopped at line 91 with a count of 0 immediately after the ledger heading appeared, before checking that business navigation had mounted. Require the navigation to appear and still assert all four trucking links in order. If navigation remains absent, treat that as an app defect.
+- Verified the rollback baseline against live production: 67 asset hashes match `210fa5fecc9f278a4ff9044037e887e9ca052c41`, and production headers and the query-preserving `account.html` redirect passed. Production promotion remains gated.
+- **Exact next action:** Resolve QA-03 in the browser test and rerun independent published Chromium. Read the first candidate's official browser result. Commit the verified fixture adjustment and wait for the updated official gate before promotion.
