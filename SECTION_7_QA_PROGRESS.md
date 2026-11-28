@@ -98,3 +98,16 @@
 - [`f87cdd56d09f90674eb016c5c6352ee7448aae46`](https://github.com/jjaren-hub/roadshop-beta/commit/f87cdd56d09f90674eb016c5c6352ee7448aae46) contains the isolated candidate, its SQL tests and the branch-only native PostgreSQL workflow. Both the verified app history and the QA log history are retained. Beta main stays on `8cfe098`; the candidate is available on `qa/section-7` for isolated deployment only.
 - 51 new assertions passed locally on PostgreSQL WASM with fictional Stripe HTTP. Covered database RPC grants, shared-project denial, server-verified beta opt-in, checkout reservation and Stripe idempotency with overlapping requests, trial reuse, excluded invoice line types, paginated settlement, duplicate delivery, delayed events, exact expiry, and links to inline billing Terms.
 - Prior passing QA groups were not rerun. Native PostgreSQL and separate Stripe Sandbox acceptance remain tracked independently.
+
+### Native test result and approval status
+
+[Isolated billing workflow 46154140574](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46154140574) completed successfully. [Job 141006946659](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46154140574/job/141006946659) confirmed 51 assertions against native PostgreSQL with separate concurrent database connections and fictional Stripe. The WASM and native runs exercise the same 51 assertions. Actual Stripe/Supabase integration testing remains open.
+
+| Remaining release gate | Owner participation and evidence needed |
+| --- | --- |
+| Isolated Supabase deployment | Provide or authorize a dedicated project and beta preview configuration. Use a preview path within the app's beta origin scope or set the scope explicitly in the isolated build. Configure OAuth and email callback allowlists and enrolled and unenrolled fictional accounts. The shared project is explicitly blocked by the candidate. |
+| Real Stripe Sandbox integration | Set the isolated webhook and Sandbox secrets through Supabase. Verify the Basic price, trial, tax behavior, public support email and portal cancellation settings. Collect evidence for parallel checkout, webhook retry and ordering, failed renewal exactly at paid-through, and cancellation/reactivation. Record receipt and session outcomes without secrets or customer financial data. |
+| Real authentication and device checks | On physical Android Chrome and iPhone Safari, verify real email/Google callback, canceled and successful hosted checkout returns, PWA update, and existing record/CSV/PDF/backup access after expiry. Record OS, browser and results. |
+| Billing legal approval | Approve the inline billing terms and Privacy draft with counsel. Confirm assent, renewal notices, refund handling, tax and Stripe data disclosures. The tested trial limit is one per eligible account. A cross-account limit would need a separate approved policy and implementation. |
+
+**Verdict:** Security and billing fixes pass isolated automated checks and are staged at `f87cdd56d09f90674eb016c5c6352ee7448aae46`. Section 7 remains open pending the checks above. No beta main deployment, shared Supabase write, Stripe transaction, live payments, or global enforcement change was made in this continuation. Start the isolated Sandbox acceptance matrix after the dedicated project is available. Section 8 remains gated.
