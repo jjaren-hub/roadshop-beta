@@ -179,3 +179,9 @@
 - PROD-02: Production's Cloudflare edge injects its optional analytics script. Retain the production CSP and Cloudflare settings. Add exact diagnostics for the explicitly blocked provider script, enforce that the browser receives no beacon or analytics-collection response, and retain the existing application error, network, auth and functional assertions. Report the provider console limitation in the final release status.
 - This result shows no critical application failure and does not trigger rollback. The other live gates completed successfully. The hosted live suite must still complete all five occupation workflows before the release is marked verified.
 - **Exact next action:** Run the scoped production-only analytics assertion change from the beta recovery branch and record the real live browser result.
+
+## Checkpoint 24 · Hosted live retry
+
+- Committed the production-only browser diagnostic in `672f7063dd60708506c23db19905983c55b3bad3` on the recovery branch. The rule matches the precise CSP denial of Cloudflare's injection, reports the observed count and fails on any returned beacon or analytics-collection response. It still fails on all other collected errors. Validated the rule against the actual diagnostic and two unrelated variants.
+- Hosted rerun [46103106723](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46103106723), job `140849794426`, is running against `earnkeep.app` after asserting the exact new service worker cache name.
+- **Exact next action:** Read the final live workflow outcome. Commit the final checklist, deployment status and observed provider limitation.
