@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-brand-entry data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; worker-src 'self'; manifest-src 'self'; form-action 'none'; base-uri 'none'">
+<title>Subscription experience preview · EarnKeep beta</title>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="subscribe.css"><link rel="stylesheet" href="subscription-preview.css"><link rel="icon" href="icon-192.png" type="image/png"><script src="theme.js"></script>
+</head>
+<body class="account-entry">
+<header class="earnkeep-header"><img src="earnkeep-banner.webp" width="480" height="160" alt="EarnKeep — Know your numbers. Own your success."></header>
+<main class="subscribe-main">
+<section class="card preview-controls" aria-labelledby="preview-heading">
+<h1 id="preview-heading">Subscription experience preview</h1>
+<p><strong>Beta simulation only.</strong> No real account changes, payments, or access permissions. All records shown here are fictional.</p>
+<label for="preview-state">View EarnKeep as</label>
+<select id="preview-state"><option value="guest">Not registered</option><option value="none" selected>Registered, no subscription</option><option value="trialing">Free trial active</option><option value="active">Subscription active</option><option value="canceled">Canceled, paid time remaining</option><option value="expired">Subscription expired</option></select>
+<div class="preview-toolbar"><button type="button" id="preview-open">Open app</button><button type="button" id="preview-reset">Reset preview</button><a href="subscribe.html">Exit preview</a></div>
+</section>
+<div id="preview-screen" aria-live="polite"></div>
+<p><a href="terms.html">Terms of Service</a> · <a href="privacy.html">Privacy Policy</a> · <a href="support.html">Support</a></p>
+<noscript>JavaScript is required for the subscription simulation.</noscript>
+</main>
+<script src="subscription-preview.js"></script><script src="quote-update.js"></script>
+</body></html>
