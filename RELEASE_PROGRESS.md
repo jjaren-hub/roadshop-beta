@@ -31,3 +31,11 @@
 - The same commit's [beta QA run 46099127156](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46099127156) failed. The stage and reason are under investigation. Production remains gated.
 - Local Playwright package installed. The three initial browser invocations exited before loading a page because the system Chromium wrapper points to a missing binary. Started installation of the pinned Playwright browser. No browser assertions credited.
 - **Exact next action:** Read the failed job steps and logs. Run the pinned browser with the replacement binary, reproduce any application failures with fictional fixtures and record them before editing.
+
+## Checkpoint 4 · Browser regression triage
+
+- [QA job 140837314508](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46099127156/job/140837314508) passed the static step, service-worker browser step and deployed byte step. The published UI browser suite stopped at `.github/qa/browser-auth-first.mjs:215`, with a raw ledger length of 1 and an expected length of 3.
+- Candidate defect QA-01: The reconciliation test uses a fixed total row count instead of testing whether close/reopen preserves the ledger. Investigate the fixture timeline and assert actual before/after ledger contents while keeping matching and history assertions.
+- Playwright CDN returned HTTP 403. Installing a temporary Chromium distribution from the npm registry to continue independent browser verification.
+- Production `sw.js` is readable at the pinned commit, with cache identifier `roadshop-earnkeep-domain-release-20261127-6`. The existing beta copy of the production workflow was not found on production `main` at the same path, so inspect production workflow inventory before dispatch.
+- **Exact next action:** Repair the reconciliation fixture and run through the next browser gate. Continue auditing mileage and transaction edge cases while browser setup completes.
