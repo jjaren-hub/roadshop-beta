@@ -39,3 +39,42 @@
 - Billing status provides Stripe state and period end but no distinct settled paid-through value. A past-due or unpaid status therefore defaults to read-only when no verified paid-through is present. The browser fixture passed the failed-renewal-after-expiry case, plus terminal canceled with future dates. Confirm any paid-through grace and out-of-order cases with owner-authorized Sandbox evidence.
 - Legal review found no separately published Subscription and Cancellation Policy despite the Terms incorporating one. Counsel and billing-owner checks are pending for cancellation and signup assent, refund terms, cross-account trial wording, applicable tax configuration, payment metadata disclosures, and access wording elsewhere in the Terms. US statutory reference: [15 U.S.C. § 8403](https://uscode.house.gov/us/usc/119-120/t15/s8403/). [Stripe public business information](https://docs.stripe.com/get-started/account/set-up#public-business-information) controls Stripe-facing support details.
 - **Next:** Capture the final prelaunch GitHub Actions outcome and itemize owner verification and release readiness.
+
+## Section 7 report · 2026-11-28
+
+**Verdict:** The beta frontend and published regression gate pass. Section 7 remains open and billing is not ready for production approval while the remaining device, shared billing, Stripe dashboard and legal checks are unresolved.
+
+| Section 7 checklist | Result | Evidence or remaining check |
+| --- | --- | --- |
+| Android browser | Emulation passed; device pending | Pixel 7 Chrome emulation of all eight simulation states. Run signed-in Chrome and installed PWA on physical Android. |
+| iPhone browser | Layout emulation passed; device pending | iPhone 13 mobile layout exercised in Chromium. Run Safari and Add to Home Screen on physical iPhone. |
+| Desktop browser | Passed | Interactive Chrome public navigation and installed update. Five occupation workflows and subscription browser tests executed on deployed assets via Actions. |
+| Login loops and checkout redirects | Partial | Signup entry and Google control visible, fictional PKCE callback exchanged once, canceled/success Billing returns exercised, and URL alone granted no access. Repeat real email verification and Google sign-in, then actual Stripe return on the deployed build with the designated test account. |
+| Subscription security and server duplicate prevention | Partial; release blocker | Read-only Edge Function and DB review, six isolated signature assertions, and fictional app access tests. Shared service needs server-side eligibility enforcement and isolated testing of concurrent checkout, duplicate and delayed webhooks, and paid-through handling. |
+| Billing errors and recovery | Passed for beta app | Tested pending checkout retry, cancellation, provider test URL validation, failed-renewal portal and recovery guidance, reactivation and refresh using fictional fixtures. |
+| Application support email | Passed for beta | Hosted signed-out mailto, Beta Terms/Privacy source, and shared billing settings use `EarnKeepsuport@gmail.com`. Production Terms/Privacy visibly show the same address. |
+| Public Stripe support email | Owner verification pending | Compare Stripe Public details and a Sandbox receipt/portal against the official address. |
+| Legal documents | Review completed; approval pending | Beta billing terms now reflect price, renewal, cancellation, trial payment method and export availability. Publish or remove the incorporated but missing policy with counsel, and reconcile operational disclosures before release. |
+| Beta simulation isolated from production | Passed | Production repository and sampled deployed scripts exclude simulation, and the production preview path resolves to the ordinary landing content. |
+| Comprehensive regression | Passed for available beta suite | Final prelaunch Action passed all automated groups; operational items above keep Section 7 open. |
+
+### Test results
+
+- [Final prelaunch QA run 46152568110](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46152568110), [job 141002160390](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46152568110/job/141002160390), finished successfully on `8cfe098c2534fd8ac565cdd4df9f437e08f73db4`. It passed all 11 static/accounting suite entries, service-worker navigation, 75 deployed asset hashes, all five occupation workflows and published subscription regression. No failures on the final gate. The baseline failure and fixes are recorded above.
+- Counts: 269 individually reported static/accounting assertions, 177 browser subscription assertions (60 preview simulation and 117 actual app with intercepted fictional dependencies), six isolated webhook verifier assertions, and 75 hosted asset matches. The five occupation workflows and service worker suite do not print total assertion counts. Local reruns and hosted repeats are excluded from these totals.
+- Browser and unit evidence included financial reconciliation, $2,416 for 1,208 paid miles and about $1.93 per 1,250 driven miles, truck scopes, fuel and DEF, escalation and escrow, mechanic quote and invoice behavior, shop supplies, logos, workspace restore/isolation, independent contractors, tax planning, PDF/CSV exports, complete backup integrity, and offline/reconnect. Read-only fixture kept existing records and export/backup inspection available while guarding writes, direct add routes and offline writes. Recovery tests used only fictional browser data.
+- No real Stripe transactions, changes to Stripe history, shared-backend changes or production writes were performed in this session. The owner’s earlier successful Stripe Sandbox and recovery runs remain historical evidence.
+
+### Defects and limitations
+
+- Medium, fixed in beta: stale terminal-cancellation fixture expectations; missing Billing return/cancellation feedback and failed-payment recovery instructions; unauthenticated support contact unavailable; incomplete pre-checkout disclosures and inconsistent expiry/cancellation copy. Fix and test files are listed above. The new service-worker cache version was exercised.
+- High, open: beta eligibility must be enforced by the shared billing service before release. Existing database ownership and Stripe idempotency controls were reviewed; trigger/concurrency behavior still needs evidence on isolated infrastructure.
+- Medium, open: the shared status response lacks a distinct settled paid-through value. Verify access at the failure and paid-period boundaries, and confirm stale or tied snapshots cannot regress entitlement. The account-level trial flag does not establish one trial per person across multiple accounts.
+- Inherent local-first limitation: financial records live in browser storage. App routes and normal writes enforce the beta policy, while someone controlling the browser profile or device can manipulate local code and data. Supabase can secure remotely stored account and billing data; it cannot make local records or local editing tamper-proof. The primary local database has no separate EarnKeep encryption. The offline pending vault and optional password-protected backup use separate protection. Data is browser/origin scoped and recovery requires an external backup when local storage is lost. An expired account can export and verify backups; importing into an account is a write governed by entitlement.
+- Production head reconfirmed `9945624ec93b31cfcd2f6975342894d6fc8102e0`. Only beta was updated. No Section 8 work initiated.
+
+### Exact next actions
+
+1. Owner: with the designated Sandbox account on physical Android Chrome and iPhone Safari, verify signup/email and Google callback, installed PWA update, successful and canceled Stripe return, cancellation/reactivation, and expired record views and downloads. Record device, OS and browser versions and results.
+2. Owner: verify Stripe Public details, receipt and portal support contact and confirm tax treatment and cancellation settings. Counsel should resolve the missing incorporated policy, access wording, consent and notice flows and data disclosure accuracy before live release.
+3. Use an isolated billing environment to apply server-side eligibility, then verify parallel Checkout requests resolve to one session/subscription, retry and webhook reordering are safe, and trial/renewal access boundaries are correct. Record results here before seeking release approval.
