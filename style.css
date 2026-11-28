@@ -307,3 +307,5 @@ html #truck-view .fleet-row-heading{font-size:inherit;margin:0;min-width:0}
 html #truck-view .fleet-edit{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;box-sizing:border-box;padding:8px 10px;margin:0;border:0;border-radius:0;background:transparent;color:inherit;text-align:left;box-shadow:none}
 html #truck-view .fleet-edit:hover{background:var(--ek-nav-hover)}
 html #truck-view .fleet-row-action{font-size:12px;font-weight:600;flex:0 0 auto;color:inherit}
+
+html .perdiem-grid>.perdiem-home{background:#405466;border-color:#657b8f;color:#fff}
