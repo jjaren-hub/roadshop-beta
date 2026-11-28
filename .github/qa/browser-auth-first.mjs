@@ -204,6 +204,8 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  }
  if(job==='truck'){
    await page.goto(root+'finance.html?tab=reconcile');
+   const ledgerBeforeReconciliation=(await localSpaces())[0].books['roadshop-ledger-v1'];
+   assert(ledgerBeforeReconciliation.some(r=>r.category==='Fixture rent'&&r.cents===10000));
    const when=await page.evaluate(()=>Q.today());await page.getByLabel('Account or statement name').fill('Fixture checking');
    await page.getByLabel('Opening balance ($)').fill('300');await page.getByLabel('Ending balance ($)').fill('200');await button('Start reconciliation').click();
    assert.equal(await page.locator('#finance-view input[type=file]').count(),0);await page.getByLabel('Statement date',{exact:true}).fill(when);await page.getByLabel('Statement description',{exact:true}).fill('Fixture rent');await page.getByLabel('Signed amount ($)',{exact:true}).fill('-100.00');await button('Add statement line').click();const summary=page.locator('summary').filter({hasText:'Fixture rent'});await summary.click();
@@ -212,7 +214,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    page.once('dialog',d=>d.accept());await button('Close statement').click();await button('Reopen statement').waitFor();await page.reload();await button('Fixture checking · '+when.slice(0,7)+' · Closed').click();
    page.once('dialog',d=>d.accept());await button('Reopen statement').click();await button('Close statement').waitFor();
    const current=(await localSpaces())[0].books['roadshop-profile-v2'].reconciliations[0];assert(!current.closed);assert.equal(current.lines[0].matches.length,1);assert.equal(current.history.length,5);
-   assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].length,3);
+   assert.deepEqual((await localSpaces())[0].books['roadshop-ledger-v1'],ledgerBeforeReconciliation);
  }
  if(job==='truck'){
    await page.goto(root+'trucking.html');await page.locator('#truck-controls .module-nav').waitFor();await button('Settlements').click();assert.equal(await page.getByRole('link',{name:/Scan settlement/i}).count(),0);await button('New manual settlement').waitFor();await button('New manual settlement').click();await button('Add settlement line').waitFor();assert.equal(await page.locator('#truck-editor input[type=file]').count(),1);assert.equal(await page.locator('#truck-editor input[accept*="csv"]').count(),0);await page.locator('#truck-editor input[type=file]').setInputFiles({name:'fixture.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nfixture\n%%EOF')});await page.getByText('Attached: fixture.pdf',{exact:true}).waitFor();await button('Add settlement line').click();await page.getByLabel('Statement description',{exact:true}).fill('Manual fixture line');assert.equal(await page.getByLabel('Statement description',{exact:true}).inputValue(),'Manual fixture line');await button('Cancel').click();await checkNav('#truck-controls .module-nav');await checkNav('main .workspace-nav');await button('Trucks').click();await checkNav('#truck-controls .module-nav');await page.getByLabel('Truck',{exact:true}).fill('Fixture 101');await page.getByLabel('Description / VIN',{exact:true}).fill('Fixture VIN');await page.getByLabel('Starting miles',{exact:true}).fill('123456');assert.equal(await page.getByLabel('Current mileage',{exact:true}).inputValue(),'123456');await button('Save truck').click();
@@ -231,7 +233,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    const calendar=page.locator('details[data-card-id=calendar]'),ifta=page.locator('details[data-card-id=ifta]');
    assert(await calendar.evaluate(d=>d.open));assert(!await ifta.evaluate(d=>d.open));
    await ifta.locator('summary').click();assert(await calendar.evaluate(d=>d.open));
-   await calendar.getByLabel('Daily rate ($)',{exact:true}).fill('80');await calendar.getByLabel('Deductible percentage',{exact:true}).fill('80');const day=calendar.locator('button[data-date]').first();
+   await calendar.getByLabel('Daily rate ($)',{exact:true}).fill('80');await calendar.getByRole('spinbutton',{name:'Deductible percentage',exact:true}).fill('80');const day=calendar.locator('button[data-date]').first();
    for(const [before,after] of [['empty','full'],['full','partial'],['partial','home'],['home','empty']]){
      assert((await day.getAttribute('class')).includes('perdiem-'+before));
      const date=await day.getAttribute('data-date');await day.click();await calendar.locator('[data-date="'+date+'"].perdiem-'+after).waitFor();
@@ -267,8 +269,163 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.goto(root+'trucking.html?tab=loads');await button('View load').click();await page.getByText('Total linked fuel expense: $443.40',{exact:true}).waitFor();
    console.log('PASS diesel and DEF purchase, load links, MPG and truck odometer');
    await page.goto(root+'finance.html?tab=ledger');const dieselCard=page.locator('#finance-view .ledger-tap-card').filter({has:page.getByRole('button',{name:'Diesel · $425.90',exact:true})});const defCard=page.locator('#finance-view .ledger-tap-card').filter({has:page.getByRole('button',{name:'DEF · $17.50',exact:true})});await dieselCard.getByRole('button',{name:'Delete entry',exact:true}).waitFor();page.once('dialog',d=>d.dismiss());await dieselCard.getByRole('button',{name:'Delete entry',exact:true}).click();assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.reversalOf===fuelRows.find(r=>r.category==='Diesel').id).length,0);page.once('dialog',d=>d.accept());await dieselCard.getByRole('button',{name:'Delete entry',exact:true}).click();await dieselCard.waitFor({state:'detached'});assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.id===fuelRows.find(r=>r.category==='Diesel').id||r.reversalOf===fuelRows.find(r=>r.category==='Diesel').id).length,0);await defCard.getByRole('button',{name:'Delete entry',exact:true}).waitFor();await page.goto(root+'trucking.html?tab=loads');await button('View load').click();await page.getByText('Total linked fuel expense: $17.50',{exact:true}).waitFor();await page.goto(root+'finance.html?tab=ledger');page.once('dialog',d=>d.accept());await defCard.getByRole('button',{name:'Delete entry',exact:true}).click();await defCard.waitFor({state:'detached'});assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.id===fuelRows.find(r=>r.category==='DEF').id||r.reversalOf===fuelRows.find(r=>r.category==='DEF').id).length,0);await page.goto(root+'trucking.html?tab=fleet');await button('Edit truck Load fixture truck').click();assert.equal(await page.getByLabel('Current mileage',{exact:true}).inputValue(),'0');console.log('PASS permanent fuel deletion, cancellation, independent products and odometer correction');
+   await button('Trucks').click();
+   await page.getByLabel('Truck',{exact:true}).fill('Mileage QA truck');
+   await page.getByLabel('Starting miles',{exact:true}).fill('100000');
+   await button('Save truck').click();
+   await page.getByRole('heading',{name:'Mileage QA truck',exact:true}).waitFor();
+   await page.getByLabel('Filter by truck',{exact:true}).selectOption('Mileage QA truck');
+   await button('Loads').click();
+   await button('New load').click();
+   for(const [label,value] of [['Load number','L-1208'],['Pickup city','Fixture origin'],['Delivery city','Fixture destination'],['Contract loaded miles','1208'],['Estimated total driven miles (optional)','1250'],['Linehaul rate ($/loaded mile)','2'],['Fuel surcharge ($/loaded mile)','0']]){
+     await page.getByLabel(label,{exact:true}).fill(value);
+   }
+   await page.getByText('Total revenue: $2,416.00',{exact:true}).waitFor();
+   await button('Save load').click();
+   await page.getByRole('heading',{name:'Load L-1208 · Planned',exact:true}).waitFor();
+   await button('Overview').click();
+   await page.getByText('Actual recorded miles: 0',{exact:true}).waitFor();
+   await page.getByText('Total contracted paid miles: 0',{exact:true}).waitFor();
+   await button('Loads').click();
+   await button('Mark picked up').click();
+   await page.getByRole('heading',{name:'Load L-1208 · Picked up',exact:true}).waitFor();
+   await button('Mark delivered').click();
+   await page.getByRole('heading',{name:'Load L-1208 · Delivered',exact:true}).waitFor();
+   await button('Mark paid').click();
+   page.once('dialog',d=>d.accept());
+   await button('Confirm payment').click();
+   await page.getByRole('heading',{name:'Load L-1208 · Paid',exact:true}).waitFor();
+   await page.getByRole('navigation',{name:'Business navigation'}).getByRole('link',{name:'Add Fuel',exact:true}).click();
+   const mileageFuel=page.getByRole('dialog',{name:'Add Fuel',exact:true});
+   await mileageFuel.getByLabel('Truck',{exact:true}).selectOption({label:'Mileage QA truck'});
+   for(const [label,value] of [['Location','Fixture mileage stop'],['Diesel gallons','100'],['Diesel price ($/gal)','4'],['DEF gallons','5'],['DEF price ($/gal)','4'],['Truck odometer','101250']]){
+     await mileageFuel.getByLabel(label,{exact:true}).fill(value);
+   }
+   await mileageFuel.getByLabel('Load number',{exact:true}).selectOption({label:'L-1208'});
+   await button('Save fuel purchase').click();
+   await mileageFuel.waitFor({state:'detached'});
+   await page.goto(root+'trucking.html');
+   await page.getByLabel('Filter by truck',{exact:true}).selectOption('Mileage QA truck');
+   for(const metric of ['Revenue: $2,416.00','Actual recorded miles: 1250','Total contracted paid miles: 1208','Revenue per actual mile: $1.93','Cost per actual mile: $0.34']){
+     await page.getByText(metric,{exact:true}).waitFor();
+   }
+   const readMiles=async label=>Number((await page.locator('#truck-view p').filter({hasText:new RegExp('^'+label+':')}).textContent()).split(':').at(-1));
+   assert.equal(await readMiles('Actual recorded miles')-await readMiles('Total contracted paid miles'),42);
+   await page.getByLabel('Filter by truck',{exact:true}).selectOption('Load fixture truck');
+   await page.getByText('Actual recorded miles: 0',{exact:true}).waitFor();
+   await page.getByText('Total contracted paid miles: 1000',{exact:true}).waitFor();
+   console.log('PASS browser mileage: 1,208 paid miles, 1,250 driven miles, $2,416.00 and $1.93 per actual mile');
 
+   await button('Settlements').click();
+   await button('New manual settlement').click();
+   for(const [label,value] of [['Carrier','Fixture Carrier'],['Settlement number','QA-SETTLEMENT'],['Statement net payment ($; negative allowed)','90.01']]){
+     await page.getByLabel(label,{exact:true}).fill(value);
+   }
+   for(const [type,extension] of [['image/jpeg','jpg'],['image/png','png']]){
+     const encoded=await page.evaluate(type=>document.createElement('canvas').toDataURL(type).split(',')[1],type);
+     await page.locator('#truck-editor input[type=file]').setInputFiles({name:'fixture.'+extension,mimeType:type,buffer:Buffer.from(encoded,'base64')});
+     await page.getByText('Attached: fixture.'+extension,{exact:true}).waitFor();
+   }
+   for(const [index,description,amount] of [[1,'Linehaul','100'],[2,'Maintenance escrow','10']]){
+     await button('Add settlement line').click();
+     const line=page.locator('#truck-editor section.card').filter({has:page.getByRole('heading',{name:'Line '+index,exact:true})});
+     await line.getByLabel('Statement description',{exact:true}).fill(description);
+     await line.getByRole('button',{name:'Suggest category',exact:true}).click();
+     await line.getByLabel('Amount ($, positive)',{exact:true}).fill(amount);
+   }
+   await button('Reconcile totals').click();
+   await page.getByText('Difference: -$0.01',{exact:true}).waitFor();
+   await button('Confirm and post to ledger').click();
+   await page.getByText('Resolve the reconciliation difference first.',{exact:true}).waitFor();
+   await page.getByLabel('Statement net payment ($; negative allowed)',{exact:true}).fill('90.00');
+   page.once('dialog',d=>d.accept());
+   await button('Confirm and post to ledger').click();
+   await page.getByText('Reconciliation difference: $0.00',{exact:true}).waitFor();
+   const settlementDownload=page.waitForEvent('download');
+   await button('Download original document').click();
+   assert.equal((await settlementDownload).suggestedFilename(),'fixture.png');
+   const settlementRows=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.ref==='QA-SETTLEMENT');
+   assert.deepEqual(settlementRows.map(r=>[r.category,r.classification,r.cents]),[['Linehaul','revenue',10000],['Maintenance escrow contribution','escrow_out',1000]]);
+   console.log('PASS browser settlement attachments, category suggestions, cent reconciliation and ledger posting');
 
+   await button('Maintenance & escrow').click();
+   await page.getByText('Maintenance escrow: $10.00',{exact:true}).waitFor();
+   const movement=page.locator('#truck-view section.card').filter({has:page.getByRole('heading',{name:'Record escrow movement',exact:true})});
+   await movement.getByLabel('Movement',{exact:true}).selectOption('release');
+   await movement.getByLabel('Amount ($)',{exact:true}).fill('10.01');
+   await button('Post escrow movement').click();
+   await page.getByText(/Insufficient recorded escrow balance/).waitFor();
+   const repair=page.locator('#truck-view section.card').filter({has:page.getByRole('heading',{name:'Maintenance / repair record',exact:true})});
+   await repair.getByLabel('Cost ($)',{exact:true}).fill('5');
+   await repair.getByLabel('Funding / posting',{exact:true}).selectOption('maintenance');
+   await repair.getByLabel('Next service / reminder date',{exact:true}).fill(await repair.getByLabel('Service date',{exact:true}).inputValue());
+   await repair.getByLabel('Next service odometer',{exact:true}).fill('1');
+   page.once('dialog',d=>d.accept());
+   await button('Save maintenance record').click();
+   await page.getByText('Maintenance escrow: $5.00',{exact:true}).waitFor();
+   await page.getByText('Reminder: DUE',{exact:true}).waitFor();
+   await page.getByText('Miles remaining: 1 mi',{exact:true}).waitFor();
+   const repairs=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.source==='trucking-repair');
+   assert.deepEqual(repairs.map(r=>[r.classification,r.cents]),[['expense',500],['escrow_in',500]]);
+   console.log('PASS browser maintenance reminder, escrow-funded repair and overdraft protection');
+
+   await button('Per diem / IFTA').click();
+   const iftaEditor=page.locator('details[data-card-id=ifta]');
+   if(!await iftaEditor.evaluate(d=>d.open))await iftaEditor.locator(':scope > summary').click();
+   await iftaEditor.getByLabel('State / province',{exact:true}).selectOption('UT');
+   await iftaEditor.getByLabel('Jurisdiction miles',{exact:true}).fill('120');
+   await iftaEditor.getByLabel('Tax-paid US gallons purchased',{exact:true}).fill('10');
+   await iftaEditor.getByLabel('Fuel receipt / supporting notes',{exact:true}).fill('Fictional fuel receipt');
+   await button('Save IFTA record').click();
+   await iftaEditor.getByText('Total recorded miles: 120',{exact:true}).waitFor();
+   await iftaEditor.getByRole('button',{name:'Edit record',exact:true}).click();
+   await iftaEditor.getByLabel('Jurisdiction miles',{exact:true}).fill('125');
+   await iftaEditor.getByRole('button',{name:'Save changes',exact:true}).click();
+   await iftaEditor.getByText('Total recorded miles: 125',{exact:true}).waitFor();
+   page.once('dialog',d=>d.accept());
+   await iftaEditor.getByRole('button',{name:'Remove record',exact:true}).click();
+   await iftaEditor.getByText('Total recorded miles: 0',{exact:true}).waitFor();
+   console.log('PASS browser IFTA record, edit, quarterly summary and removal');
+
+   await button('Lease & financing').click();
+   await button('Add lease or financing record').click();
+   for(const [label,value] of [['Lease / financing name','Fixture lease'],['Payment amount ($)','1199'],['Number of scheduled payments','42'],['Separate buyout / balloon ($)','4313.25']]){
+     await page.getByLabel(label,{exact:true}).fill(value);
+   }
+   await button('Save record').click();
+   await page.getByText('Remaining scheduled payments: 42',{exact:true}).waitFor();
+   await page.getByText('Separate buyout: $4,313.25',{exact:true}).waitFor();
+   await button('Open record').click();
+   await page.getByLabel('Accounting treatment',{exact:true}).selectOption('lease');
+   await button('Record payment').click();
+   await page.getByText('Remaining: 41 payments · $49,159.00',{exact:true}).waitFor();
+   const paymentDate=await page.getByLabel('Actual payment date',{exact:true}).inputValue();
+   const nextDue=new Date(Date.parse(paymentDate)+7*86400000).toISOString().slice(0,10);
+   const schedule=page.locator('#truck-editor section.card').filter({has:page.getByRole('heading',{name:'Change future payment schedule',exact:true})});
+   await schedule.getByLabel('First / effective payment date',{exact:true}).fill(nextDue);
+   await schedule.getByLabel('Payment amount ($)',{exact:true}).fill('649');
+   await schedule.getByLabel('Number of scheduled payments',{exact:true}).fill('2');
+   await button('Append schedule change').click();
+   await page.getByText('Remaining: 2 payments · $1,298.00',{exact:true}).waitFor();
+   await page.getByText('Buyout: $4,313.25',{exact:true}).waitFor();
+   assert.deepEqual((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.source==='trucking-lease').map(r=>r.cents),[119900]);
+   console.log('PASS browser lease payment, schedule change, separate buyout and ledger integration');
+
+   await button('Calculators').click();
+   const calculator=page.locator('#truck-view section.card').filter({has:page.getByRole('heading',{name:'Load, trip and weekly profit estimates',exact:true})});
+   await calculator.getByLabel('Estimate period',{exact:true}).selectOption('trip');
+   await calculator.getByLabel('Payment method',{exact:true}).selectOption('flat');
+   await calculator.getByLabel('Total flat revenue ($, selected period)',{exact:true}).fill('2500');
+   await calculator.getByLabel('Estimated total driven miles (optional)',{exact:true}).fill('1250');
+   await calculator.getByLabel('Fuel economy (MPG)',{exact:true}).fill('10');
+   await calculator.getByLabel('Diesel price ($/gal)',{exact:true}).fill('4');
+   assert(!await calculator.getByLabel('Fuel surcharge ($/loaded mile)',{exact:true}).isVisible());
+   await button('Calculate').click();
+   await calculator.getByText('Revenue: $2,500.00',{exact:true}).waitFor();
+   await calculator.getByText('Gallons: 125.00',{exact:true}).waitFor();
+   await calculator.getByText('Fuel cost: $500.00',{exact:true}).waitFor();
+   await calculator.getByText(/Break-even flat revenue:/).last().waitFor();
+   console.log('PASS browser flat-rate calculator, driven-mile fuel estimate and break-even price');
  }
  if(job==='general'){
    await page.goto(root+'billing.html');

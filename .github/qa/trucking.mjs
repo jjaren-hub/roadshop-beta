@@ -50,6 +50,44 @@ const F=new Function(readFileSync('core/finance.js','utf8')+';return Finance')()
 console.log('PASS load records, stages, revenue, payment date, duplicate prevention and ledger protection');
 }
 
+{
+ const date='2026-11-25',truck='Truck A';
+ let sequence=0;const id=()=>`release-${++sequence}`;
+ const load=T.loadRecord({number:'LINK-1',truck,pickupDate:date,pickupCity:'A',deliveryDate:date,deliveryCity:'B',loaded:1208,linehaul:2,fsc:0,stage:'Delivered'},[],date,id());
+ const unassigned=T.row({id:id(),date,truck:'',category:'Linehaul',classification:'revenue',cents:241600,ref:load.number});
+ const payment=T.payLoad(load,[load],[unassigned],date,date,{Linehaul:unassigned.id},id);
+ const d={...T.blank(),loads:[payment.record]};
+ ok(payment.rows.length===1&&payment.rows[0].id===unassigned.id&&unassigned.vehicle==='','Linking preserves the existing ID and does not mutate the original row');
+ ok(T.dashboard(d,payment.rows,truck,date,date).income===241600,'Linked payment appears in the selected truck report');
+ ok(T.dashboard(d,payment.rows,'Truck B',date,date).income===0,'Linked payment is isolated from other trucks');
+ ok(T.dashboard(d,payment.rows,'',date,date).income===241600,'Company revenue counts the linked payment once');
+ const legacy=T.periodReport(d,[unassigned],truck,date,date);
+ ok(legacy.income===241600&&legacy.incomeCategories.Linehaul===241600,'Historical linked payments retain truck revenue and breakdown');
+ ok(legacy.unassignedCount===0&&unassigned.vehicle==='','Reports resolve historical links without rewriting saved rows');
+ console.log('PASS load payment assignment: 6 assertions');
+}
+
+{
+ const date='2026-11-25',truck='Truck A';
+ let sequence=0;const id=()=>`escrow-release-${++sequence}`;
+ const movement=(direction,amount,link)=>({category:`Maintenance escrow ${direction}`,classification:direction==='release'?'escrow_in':'escrow_out',amount,link});
+ const statement=(net,...lines)=>({id:id(),carrier:'Fixture',number:id(),truck,date,net,lines});
+ const post=(s,rows=[])=>T.post(s,[],rows,id);
+ const reject=(...args)=>{let error;try{post(...args)}catch(e){error=e}ok(/Insufficient recorded escrow balance/.test(error?.message),'Reject settlement release that overdraws escrow');};
+ reject(statement('1',movement('release','1')));
+ reject(statement('20',movement('release','60'),movement('release','60'),movement('contribution','100')));
+ const balanced=post(statement('0',movement('release','100'),movement('contribution','100')));
+ ok(T.escrow(balanced.rows,truck).maintenance===0,'Same-day contribution covers a release on the same statement');
+ ok(T.dashboard(T.blank(),balanced.rows,truck,date,date).expense===0,'Escrow transfers do not become operating expenses');
+ const prior=T.row({id:id(),date:'2026-11-24',truck,category:'Maintenance escrow contribution',classification:'escrow_out',cents:10000});
+ const later=T.row({id:id(),date:'2026-11-26',truck,category:'Maintenance escrow release',classification:'escrow_in',cents:7500});
+ reject(statement('30',movement('release','30')),[prior,later]);
+ const existing=T.row({id:id(),date,truck,category:'Maintenance escrow release',classification:'escrow_in',cents:2500});
+ const linked=post(statement('25',movement('release','25',existing.id)),[prior,later,existing]);
+ ok(T.escrow(linked.rows,truck).maintenance===0&&linked.rows.length===3,'Linking an existing release does not subtract it twice');
+ console.log('PASS settlement escrow balances: 6 assertions');
+}
+
 
 {
  const d=T.blank();d.trucks=[{id:'truck-a',name:'Truck A',startingMiles:1000},{id:'truck-b',name:'Truck B',startingMiles:2000}];d.loads=[{kind:'record',id:'load-a',number:'L-1',truck:'Truck A'}];
@@ -100,6 +138,14 @@ console.log('PASS load records, stages, revenue, payment date, duplicate prevent
  let i=0;const paid=T.payLoad(load,[load],[],date,date,{},()=> 'empty-test-row-'+(++i));eq(paid.rows.length,3);eq(paid.rows.find(x=>x.category==='Empty mile pay').cents,12500);eq(paid.rows.reduce((s,r)=>s+r.cents,0),load.total);
  const q=T.calculate({loaded:1000,deadhead:100,mpg:10,fuel:4,discount:0,linehaul:1.45,fsc:.56,emptyRate:1.25,dispatch:0,reserve:0,fixed:0,extra:0,otherRevenue:0,goal:0,days:5});eq(q.gross,213500);eq(q.emptyRevenue,12500);
  console.log('PASS empty mileage rate, payment posting, legacy zero rates and calculator');
+}
+
+{
+ const rates={loaded:1,linehaul:1.004,fsc:.004};
+ const estimate=T.calculate({...rates,deadhead:0,mpg:10,days:5});
+ const saved=T.loadRevenue({...rates,empty:0});
+ ok(saved.total===100&&estimate.gross===saved.total,'Calculator matches separately rounded ledger revenue to the cent');
+ console.log('PASS mileage-rate cent rounding: 1 assertion');
 }
 
 // Release regression: contracted mileage is never actual mileage.

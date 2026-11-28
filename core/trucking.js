@@ -111,17 +111,18 @@ function payLoad(load,loads,ledger,date,today,links={},newId){
  requireDate(date);requireDate(today);if(date<load.deliveryDate||date>today)throw Error('Payment date must be on or after delivery and not in the future.');
  if(!loadRevenue(load).total)throw Error('Enter positive revenue before recording payment.');
  if(ledger.some(r=>r.source==='trucking-load'&&r.externalId?.startsWith(load.id+'-')))throw Error('Load payment already exists.');
- const used=new Set(loads.flatMap(x=>x.ledgerIds||[])),added=[],ids=[];
+ const used=new Set(loads.flatMap(x=>x.ledgerIds||[])),assigned=new Map(),added=[],ids=[];
  for(const [category,cents] of loadPaymentParts(load)){
   const matches=loadPaymentMatches(load,ledger,date,category,cents);
   if(links[category]&&links[category]!=='new'){
    const r=matches.find(x=>x.id===links[category]);if(!r||r.date!==date||used.has(r.id))throw Error('Existing entry must match payment date, truck, category and amount and cannot belong to another load.');
+   if(!r.vehicle)assigned.set(r.id,{...r,vehicle:load.truck,audit:F.audit(r,'linked load payment',load.number)});
    ids.push(r.id);used.add(r.id);continue;
   }
   if(matches.length&&links[category]!=='new')throw Error('Possible duplicate '+category+'. Link the existing ledger entry or explicitly confirm a separate payment.');
   const r=row({id:newId(),date,truck:load.truck,category,classification:'revenue',cents,ref:load.number,note:'Load '+load.number,source:'trucking-load',externalId:load.id+'-'+(category==='Linehaul'?'linehaul':category==='Empty mile pay'?'empty':'fsc')});added.push(r);ids.push(r.id);
  }
- return {record:{...load,stage:'Paid',paidDate:date,ledgerIds:ids},rows:[...ledger,...added]};
+ return {record:{...load,stage:'Paid',paidDate:date,ledgerIds:ids},rows:[...ledger.map(r=>assigned.get(r.id)||r),...added]};
 }
 function candidates(s,l,ledger){return ledger.filter(r=>r.trade==='Trucking'&&r.date===s.date&&(!r.vehicle||r.vehicle===s.truck)&&!r.settlement&&r.sign!==-1&&!r.splits?.length&&!ledger.some(x=>x.reversalOf===r.id&&x.sign===-1)&&r.cents===l.cents&&F.kind(r)===l.classification&&normalize(r.category)===normalize(l.category));}
 function post(s,existing,ledger,id){
@@ -136,7 +137,17 @@ linked.set(r.id,{...r,vehicle:s.truck,settlement:s.id,audit:F.audit(r,'linked se
 if(possible.length&&l.link!=='new')throw Error('Possible duplicate on line '+(i+1)+'. Link an existing entry or explicitly confirm this is a separate charge.');
 const r=row({id:id(),date:s.date,truck:s.truck,category:l.category,classification:l.classification,cents:l.cents,ref:s.number,note:l.description,source:'trucking-settlement',externalId:s.id+'-'+i,settlement:s.id});added.push(r);ids.push(r.id);
 }
-return {record:{...s,posted:true,postedAt:new Date().toISOString(),ledgerIds:ids,gross:result.gross,deductions:result.deductions,credits:result.credits,netCents:result.net,scanStatus:'manual-review'},rows:[...ledger.map(r=>linked.get(r.id)||r),...added]};
+const postedRows=[...ledger.map(r=>linked.get(r.id)||r),...added];
+const newMovements=[...added,...ledger.filter(r=>!r.vehicle&&linked.has(r.id)).map(r=>linked.get(r.id))];
+const releaseAccounts=new Set(escrowHistory(newMovements,s.truck).filter(x=>x.delta<0).map(x=>x.account));
+if(releaseAccounts.size){
+ const dates=[s.date,...new Set(escrowHistory(postedRows,s.truck).filter(x=>releaseAccounts.has(x.account)&&x.date>s.date).map(x=>x.date))];
+ for(const date of dates){
+  const balance=escrow(postedRows,s.truck,date);
+  if([...releaseAccounts].some(account=>balance[account]<0))throw Error('Insufficient recorded escrow balance on the movement date or a later recorded date. Reconcile contributions first.');
+ }
+}
+return {record:{...s,posted:true,postedAt:new Date().toISOString(),ledgerIds:ids,gross:result.gross,deductions:result.deductions,credits:result.credits,netCents:result.net,scanStatus:'manual-review'},rows:postedRows};
 }
 function reconciliation(s,ledger){const found=ledger.filter(r=>r.settlement===s.id);const cash=F.total(found).cash;return {cash,expected:s.netCents,difference:cash-s.netCents,missing:(s.ledgerIds||[]).filter(id=>!found.some(r=>r.id===id)).length};}
 function defaultsFor(p,date){const o=p.operating?.truck||{},g=p.goals||{};const loaded=num(o.loaded||Math.max(0,num(o.miles)-num(o.deadhead))),deadhead=num(o.deadhead||Math.max(0,num(o.miles)-loaded));let fixed=0,extra=0,fixedReserve=0;const excluded=[];
@@ -152,10 +163,10 @@ else if(F.classes[cls]?.[1]===-1)fixedReserve+=amount;
 return {payMethod:'mileage',flatRate:'',routeMiles:'',loaded,deadhead,mpg:o.mpg||'',fuel:o.fuel||0,discount:o.discount||0,linehaul:o.linehaul||0,emptyRate:o.emptyRate||0,fsc:o.fsc||0,dispatch:o.dispatch||0,reserve:o.escrow||0,fixed:fixed.toFixed(2),extra:extra.toFixed(2),fixedReserve:fixedReserve.toFixed(2),excluded,otherRevenue:0,goal:Math.max(num(g.weekly),num(g.monthly)*12/52).toFixed(2),days:o.days||5,baselineMiles:num(o.miles)||loaded+deadhead,alternativeDiscount:0,downtimeDays:0};}
 function calculate(v){if(v.payMethod&&!['mileage','flat'].includes(v.payMethod))throw Error('Choose a valid payment method.');const flat=v.payMethod==='flat',loaded=num(v.loaded),dead=num(v.deadhead),miles=v.routeMiles==null||String(v.routeMiles).trim()===''?loaded+dead:num(v.routeMiles,'estimated driven miles'),mpg=num(v.mpg),fuel=num(v.fuel),discount=num(v.discount),linehaul=flat?0:num(v.linehaul),emptyRate=flat?0:num(v.emptyRate),fsc=flat?0:num(v.fsc),dispatch=num(v.dispatch)/100,reserve=num(v.reserve),fixed=money(v.fixed),extra=money(v.extra),fixedReserve=money(v.fixedReserve),other=money(v.otherRevenue),goal=money(v.goal),days=num(v.days),alt=num(v.alternativeDiscount),down=num(v.downtimeDays);
 const flatCents=flat?money(v.flatRate):0;if(flat&&!F.safe(flatCents))throw Error('Enter a positive flat revenue amount for the selected period.');if(!mpg||dispatch>=1||discount>fuel||alt>fuel||!days||days>7)throw Error('MPG and working days must be positive, dispatch below 100%, discount no more than diesel price.');
-const gallons=miles/mpg, fuelCost=round(gallons*(fuel-discount)*100),emptyRevenue=round(dead*emptyRate*100),gross=(flat?flatCents:round(loaded*(linehaul+fsc)*100)+emptyRevenue)+other,dispatchCost=round(gross*dispatch),cost=fixed+extra+fuelCost+dispatchCost,net=gross-cost,held=round(miles*reserve*100)+fixedReserve,available=net-held;
+const gallons=miles/mpg, fuelCost=round(gallons*(fuel-discount)*100),emptyRevenue=round(dead*emptyRate*100),fscRevenue=round(loaded*fsc*100),gross=(flat?flatCents:round(loaded*linehaul*100)+fscRevenue+emptyRevenue)+other,dispatchCost=round(gross*dispatch),cost=fixed+extra+fuelCost+dispatchCost,net=gross-cost,held=round(miles*reserve*100)+fixedReserve,available=net-held;
 const per=(n,d)=>d?n/d/100:null,ratio=miles?loaded/miles:0,emptyRatio=miles?dead/miles:0,unit=((linehaul+fsc)*ratio+emptyRate*emptyRatio)*(1-dispatch)-(fuel-discount)/mpg-reserve;
 const requiredGross=Math.max(0,(fixed+extra+fuelCost+held+goal)/(1-dispatch)-other);
-return {miles,gallons,gross,emptyRevenue,cost,net,held,available,fuelCost,dispatchCost,loadedRate:per(gross,loaded),rpm:per(gross,miles),cpm:per(cost,miles),ppm:per(net,miles),fuelPerMile:per(fuelCost,miles),deadheadCost:round(dead*(fuel-discount)/mpg*100),fscRevenue:round(loaded*fsc*100),breakEvenFlat:flat?round(Math.max(0,(fixed+extra+fuelCost)/(1-dispatch)-other)):null,requiredFlat:flat?round(requiredGross):null,breakEvenLoaded:!flat&&loaded?Math.max(0,((fixed+extra+fuelCost)/(1-dispatch)-other-emptyRevenue)/100/loaded):null,requiredLoaded:!flat&&loaded?Math.max(0,requiredGross-emptyRevenue)/100/loaded:null,requiredMiles:!flat&&unit>0?Math.ceil(Math.max(0,(fixed+extra+fixedReserve+goal-other*(1-dispatch))/100)/unit):null,monthly:round(net*52/12),annual:round(net*52),downtimeCost:round(Math.max(0,gross-dispatchCost-fuelCost-held+fixedReserve)/days*down),alternativeFuelCost:round(gallons*(fuel-alt)*100),discountSavings:round(gallons*(alt-discount)*100)};}
+return {miles,gallons,gross,emptyRevenue,cost,net,held,available,fuelCost,dispatchCost,loadedRate:per(gross,loaded),rpm:per(gross,miles),cpm:per(cost,miles),ppm:per(net,miles),fuelPerMile:per(fuelCost,miles),deadheadCost:round(dead*(fuel-discount)/mpg*100),fscRevenue,breakEvenFlat:flat?round(Math.max(0,(fixed+extra+fuelCost)/(1-dispatch)-other)):null,requiredFlat:flat?round(requiredGross):null,breakEvenLoaded:!flat&&loaded?Math.max(0,((fixed+extra+fuelCost)/(1-dispatch)-other-emptyRevenue)/100/loaded):null,requiredLoaded:!flat&&loaded?Math.max(0,requiredGross-emptyRevenue)/100/loaded:null,requiredMiles:!flat&&unit>0?Math.ceil(Math.max(0,(fixed+extra+fixedReserve+goal-other*(1-dispatch))/100)/unit):null,monthly:round(net*52/12),annual:round(net*52),downtimeCost:round(Math.max(0,gross-dispatchCost-fuelCost-held+fixedReserve)/days*down),alternativeFuelCost:round(gallons*(fuel-alt)*100),discountSavings:round(gallons*(alt-discount)*100)};}
 function financing(v){const principal=money(v.principal),down=money(v.down),buyout=money(v.buyout),months=num(v.months),apr=num(v.apr)/1200;if(!Number.isInteger(months)||months<1||months>600||down>principal||apr>1||buyout>principal-down)throw Error('Check loan amount, down payment, term and balloon.');const balance=principal-down;const p=apr?(balance-buyout/Math.pow(1+apr,months))*apr/(1-Math.pow(1+apr,-months)):(balance-buyout)/months;return {payment:round(p),total:round(p*months)+buyout+down,interest:round(p*months)+buyout-balance};}
 function leasePurchase(v){const amount=money(v.amount),count=num(v.count),buyout=money(v.buyout),upfront=money(v.upfront);if(!F.safe(amount)||!Number.isInteger(count)||count<1||count>1500)throw Error('Enter a positive payment and valid payment count.');return {payments:round(amount*count),buyout,upfront,total:round(amount*count+buyout+upfront)};}
 function schedule(v){requireDate(v.due);const count=num(v.count),amount=money(v.amount);if(!Number.isInteger(count)||count<1||count>1500||!F.safe(amount)||!Object.hasOwn(F.schedules,v.frequency)||v.frequency==='Custom days'&&(!Number.isInteger(+v.interval)||+v.interval<1||+v.interval>3650))throw Error('Invalid payment schedule.');return {...v,count,cents:amount};}
@@ -219,7 +230,16 @@ function mileageReport(data,rows,truck,from,to){
  for(const x of data.loads.filter(x=>x.kind==='record'&&['Delivered','Paid'].includes(x.stage)&&within(x.deliveryDate)&&(!truck||x.truck===truck||selected.some(t=>matches(x.truck,t))))){result.completedLoads++;if(x.payMethod==='flat'){result.flatLoads=(result.flatLoads||0)+1;continue;}result.paidLoaded+=Number(x.loaded)||0;if(Number(x.emptyRate)>0)result.paidEmpty+=Number(x.empty)||0;}
  result.flatLoads=result.flatLoads||0;result.paidMiles=result.paidLoaded+result.paidEmpty;return result;
 }
-function dashboard(data,rows,truck,from,to){const m=mileageReport(data,rows,truck,from,to),l=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to),t=F.total(l),miles=m.miles;let fuel=0;for(const r of l)for(const x of F.lines(r))if(normalize(x.category)==='diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,...m,mpg:m.gallons&&miles?miles/m.gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
+// Earlier versions linked payments by ID without assigning their ledger rows to a truck.
+function reportLedger(data,rows){
+ const trucksByPayment=new Map();
+ for(const load of data.loads){
+  if(load.kind!=='record'||load.stage!=='Paid'||!load.truck)continue;
+  for(const id of load.ledgerIds||[])trucksByPayment.set(id,load.truck);
+ }
+ return rows.filter(r=>r.trade==='Trucking').map(r=>!r.vehicle&&trucksByPayment.has(r.id)?{...r,vehicle:trucksByPayment.get(r.id)}:r);
+}
+function dashboard(data,rows,truck,from,to){const m=mileageReport(data,rows,truck,from,to),l=reportLedger(data,rows).filter(r=>(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to),t=F.total(l),miles=m.miles;let fuel=0;for(const r of l)for(const x of F.lines(r))if(normalize(x.category)==='diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,...m,mpg:m.gallons&&miles?miles/m.gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
 // Report dates refer to actual ledger dates, not settlement work-week dates.
 function reportRange(preset,today){
  requireDate(today);const shift=(d,n)=>new Date(Date.parse(d)+n*86400000).toISOString().slice(0,10);
@@ -232,7 +252,7 @@ function reportRange(preset,today){
 }
 function periodReport(data,rows,truck,from,to){
  requireDate(from);requireDate(to);if(to<from)throw Error('End must follow start.');
- const scoped=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)),selected=scoped.filter(r=>r.date>=from&&r.date<=to),d=dashboard(data,scoped,truck,from,to);
+ const ledger=reportLedger(data,rows),scoped=ledger.filter(r=>!truck||r.vehicle===truck),selected=scoped.filter(r=>r.date>=from&&r.date<=to),d=dashboard(data,scoped,truck,from,to);
  const incomeCategories=Object.create(null),transfers=Object.create(null);let diesel=0,reimbursement=0,escrowIn=0,escrowOut=0;
  for(const r of selected)for(const l of F.lines(r)){
   const n=l.cents*(r.sign||1),[profit,cash]=F.classes[l.classification];
@@ -247,7 +267,7 @@ function periodReport(data,rows,truck,from,to){
  const trips=data.perdiem.filter(x=>(!truck||x.truck===truck)&&x.depart<=to&&x.return>=from),complete=trips.filter(x=>x.depart>=from&&x.return<=to);
  const travelTotals=complete.reduce((a,x)=>{const q=travel(x);a.eligible+=q.eligible;a.estimated+=q.estimated;a.home+=num(x.home);return a},{eligible:0,estimated:0,home:0});
  const mileageRecords=data.mileage.filter(x=>(!truck||x.truck===truck)&&x.date>=from&&x.date<=to);
- const unassigned=rows.filter(r=>r.trade==='Trucking'&&!r.vehicle&&r.date>=from&&r.date<=to);
+ const unassigned=ledger.filter(r=>!r.vehicle&&r.date>=from&&r.date<=to);
  return {...d,incomeCategories,transfers,diesel,reimbursement,netFuel:diesel-reimbursement,escrowIn,escrowOut,escrowAsOf:escrow(scoped.filter(r=>r.date<=to),truck),postedCount:posted.length,draftCount:settlements.length-posted.length,settlementTotals,travelTotals,partialTrips:trips.length-complete.length,mileageCount:mileageRecords.length,unassignedCount:unassigned.length};
 }
 // Trucks are associated by name in older records; also protect references by ID.

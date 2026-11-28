@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {chromium} from 'playwright-core';
-const source=readFileSync('sw.js','utf8'),requests=[];
+let source=readFileSync('sw.js','utf8');
+const requests=[];
 const server=createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');requests.push(u.pathname+u.search);
  if(u.pathname.endsWith('.html')){res.writeHead(308,{location:u.pathname.slice(0,-5)+u.search});return res.end()}
@@ -31,5 +32,13 @@ try{
  await page.evaluate(async()=>{for(const name of await caches.keys()){const c=await caches.open(name);await c.delete('/finance.html')}});
  await page.goto(root+'finance.html?cachemiss=1');await page.getByRole('heading',{name:'Fixture /finance',exact:true}).waitFor();assert.equal(new URL(page.url()).search,'?cachemiss=1');
  assert(await page.evaluate(async()=>{for(const name of await caches.keys()){for(const req of await (await caches.open(name)).keys())if(/fictional-callback|fictional-recovery|fixture-error|fictional-canonical/.test(req.url))return false}return true}));
- await ctx.close();console.log('PASS service-worker cached redirects, offline navigation, authentication callbacks, query preservation and cache isolation');
+ const previousCache=source.match(/const CACHE = '([^']+)'/)[1],nextCache=previousCache+'-fixture-update';
+ source=source.replace(previousCache,nextCache);
+ await page.evaluate(async()=>{const registration=await navigator.serviceWorker.ready;await registration.update()});
+ await page.waitForFunction(async ({previousCache,nextCache})=>{const keys=await caches.keys();return keys.includes(nextCache)&&!keys.includes(previousCache)},{previousCache,nextCache});
+ await ctx.setOffline(true);
+ await page.goto(root+'ledger?update=offline');
+ await page.getByRole('heading',{name:'Fixture /ledger',exact:true}).waitFor();
+ assert.equal(new URL(page.url()).search,'?update=offline');
+ await ctx.close();console.log('PASS service-worker cached redirects, offline navigation, authentication callbacks, query preservation, cache isolation and installed cache update');
 }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve))}
