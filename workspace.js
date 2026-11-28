@@ -17,7 +17,9 @@ function save(){
   writes.then(()=>feedback.textContent='Progress saved.',e=>feedback.textContent='Could not save. '+e.message);
   return writes;
 }
-window.flushWorkspaceDraft=()=>timer?save():writes;
+window.flushWorkspaceDraft=()=> (timer?save():writes).catch(error=>{
+  if(error.name!=='SubscriptionReadOnlyError')throw error;
+});
 document.addEventListener('click',async event=>{
   const a=event.target.closest('a[href]');
   if(!a || event.ctrlKey || event.metaKey || event.shiftKey || event.button!==0)return;
@@ -96,7 +98,7 @@ function dashboard(){
   const links=[['finance','Finances','finance.html'],...(state.job==='truck'?[['truck','Trucking tools','trucking.html'],['quotes','Quotes (optional)','quotes.html']]:[]),...(state.job==='mechanic'?[['mechanic','Mechanic tools','mechanic.html'],['quotes','Legacy quotes','quotes.html']]:[]),['reports','Reports & reminders','reports.html'],['insights','Business insights','insights.html'],['tax','Taxes & planning','tax-planning.html'],['offline','Offline entry','offline.html'],['classic','Classic ledger','ledger.html?ledger'],['backup','Backup & Recovery','backup.html'],['billing','Billing','billing.html'],['support','Help & support','support.html'],...(commercial?.isAdmin?[['admin','Administration','admin.html']]:[])].filter(([k])=>!['reports','offline'].includes(k)||commercial?.flags?.[k]!==false);
   const link=(parent,s,url,tool)=>{const a=el(parent,'a',s);a.href=url;if(tool)a.dataset.tool=tool;};
   for(const [k,label,url] of links)if(!['billing','support','admin'].includes(k)&&!pref.quickHidden.includes(k)&&!(k==='quotes'&&state.hidden.includes('quotes'))&&!(state.job==='truck'&&k==='quotes'))link(nav,label,url,k);
-  btn(nav,'Business settings',()=>go(1));
+  if(!BookStore.readOnly)btn(nav,'Business settings',()=>go(1));
   const allTools=el(content,'details');el(allTools,'summary','All tools & shortcuts');const more=el(allTools,'div');more.className='workspace-nav dashboard-nav';for(const [k,label,url] of links)if(!(k==='quotes'&&state.job!=='truck'&&state.hidden.includes('quotes')))link(more,label,url,k);
   const name={actual:'Actual performance',health:'Business health',reminders:'Reminders',...features};
   const metric=(parent,k,v)=>{const a=el(parent,'p');el(a,'small',k);el(a,'strong',v)};

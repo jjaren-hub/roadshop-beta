@@ -41,3 +41,5 @@ jobs:
         run: node .github/qa/verify-deployment.mjs
       - name: Run browser workflows on published beta using intercepted fictional backend
         run: node tests/browser-auth-first.mjs
+      - name: Verify subscription states and read-only recovery using fictional billing
+        run: node tests/subscription-browser.mjs

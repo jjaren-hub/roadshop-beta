@@ -49,13 +49,13 @@
       location.replace('account.html?switch=1&workspace='+ (archive?'removed':'restored'));
     }finally{managing=false;}
   }
-  function businessRow(parent,space,archived){
+  function businessRow(parent,space,archived,writable){
     const row=document.createElement('div');row.className='business-manage-row';
     const name=space.profile_name||space.name;
     const b=document.createElement(archived?'span':'button');b.textContent=name;
     if(!archived){b.type='button';b.className='business-open';b.onclick=()=>openBusiness(space.id);}
-    const action=document.createElement('button');action.type='button';action.className=archived?'business-restore':'business-remove';action.textContent=archived?'Restore':'Remove';action.setAttribute('aria-label',(archived?'Restore ':'Remove ')+name);action.onclick=run(()=>changeArchive(space,!archived));
-    row.append(b,action);parent.append(row);
+    row.append(b);parent.append(row);
+    if(writable){const action=document.createElement('button');action.type='button';action.className=archived?'business-restore':'business-remove';action.textContent=archived?'Restore':'Remove';action.setAttribute('aria-label',(archived?'Restore ':'Remove ')+name);action.onclick=run(()=>changeArchive(space,!archived));row.append(action);}
   }
   function openBusiness(id) {
     if(managing||!user)return;
@@ -83,6 +83,7 @@
     EarnKeepBackup.attach(user.id,$('member'));
     const owner=user.id;const allSpaces=(await LocalBooks.list(owner)).map(w=>({...w,profile_name:w.books['roadshop-profile-v2']?.profile?.business,archived:w.books[archiveKey]}));
     const spaces=allSpaces.filter(s=>!s.archived),archived=allSpaces.filter(s=>!!s.archived);
+    const writable=await LocalBooks.canWrite(owner);
     if(version!==displayVersion)return;
     if(!recoveryCallback && !switchMode){
       if(spaces.length){
@@ -90,7 +91,7 @@
         const selected=spaces.find(space=>space.id===last?.id && last.user===user.id)||spaces[0];
         openBusiness(selected.id);return;
       }
-      if(!archived.length){$('start-setup').hidden=false;
+      if(!archived.length&&writable){$('start-setup').hidden=false;
       $('start-setup').onclick=run(async()=>{
         if(creatingFirst)return;
         $('start-setup').disabled=true;
@@ -109,11 +110,12 @@
       return;}
     }
     $('start-setup').hidden=true;
-    $('create').hidden=false;
-    if(!spaces.length){const p=document.createElement('p');p.textContent='No active businesses. Create a business or restore one below.';$('businesses').append(p);}
-    for(const space of spaces)businessRow($('businesses'),space,false);
+    $('create').hidden=!writable;
+    if(!spaces.length){const p=document.createElement('p');p.textContent=writable?'No active businesses. Create a business or restore one below.':'No active businesses are available on this device.';$('businesses').append(p);}
+    if(!writable)say(RoadCommercial.readOnly);
+    for(const space of spaces)businessRow($('businesses'),space,false,writable);
     $('archive-section').hidden=!archived.length;
-    for(const space of archived)businessRow($('archived-businesses'),space,true);
+    for(const space of archived)businessRow($('archived-businesses'),space,true,writable);
     if(query.get('workspace')==='removed')say('Business removed. Its records are saved under Archived businesses.');
     if(query.get('workspace')==='restored')say('Business restored.');
   }
@@ -125,12 +127,19 @@
       if(result.session)await display(result.session);
       else say('Check your email for the verification link.'); 
     } else {
+      if(!query.has('subscribe')&&!query.has('signup'))try{sessionStorage.removeItem(subscriptionKey)}catch{}
       const data=check(await auth.signInWithPassword(credentials)); await display(data.session);
       if(switchMode || recoveryCallback)say('Choose a business workspace.');
     }
     $('password').value='';
   });
-  $('google').onclick=run(async()=>check(await auth.signInWithOAuth({provider:'google',options:{redirectTo:redirect}})));
+  $('google').onclick=run(async()=>{
+    try{
+      if(query.has('subscribe')||query.has('signup'))sessionStorage.setItem(subscriptionKey,'1');
+      else sessionStorage.removeItem(subscriptionKey);
+    }catch{}
+    check(await auth.signInWithOAuth({provider:'google',options:{redirectTo:redirect}}));
+  });
   for(const id of ['resend','reset']) $(id).onclick=run(async()=>{
     if(!$('email').reportValidity())return;
     const email=$('email').value.trim();

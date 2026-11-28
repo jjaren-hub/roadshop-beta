@@ -81,7 +81,7 @@ if(route.has('job')||route.has('new')){
  tab='jobs';render();const job=data.jobs.find(item=>item.id===route.get('job'));
  if(job)jobView(job);
  else if(route.has('job'))say('This work order is unavailable in this business.');
- else if(data.customers.length&&data.vehicles.length)quoteEditor();
+ else if(!BookStore.readOnly&&data.customers.length&&data.vehicles.length)quoteEditor();
 }else render();
 })();
 // Browser print shortcuts must reveal only the customer projection.

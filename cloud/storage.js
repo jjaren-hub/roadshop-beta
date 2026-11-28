@@ -2,10 +2,11 @@
 // This is device convenience, not independent encryption or remote revocation while disconnected.
 const DeviceSession=(()=>{
  const authKey='roadshop-auth-v1',verifiedKey='earnkeep-last-verified-session',maxAge=7*86400000;
+ let current=null;
  function cached(){try{const s=JSON.parse(localStorage.getItem(authKey)||'null'),m=JSON.parse(localStorage.getItem(verifiedKey)||'null');if(s?.user?.id&&s.user.id===m?.id&&!s.user.is_anonymous&&Number.isFinite(m.at)&&m.at<=Date.now()&&Date.now()-m.at<=maxAge)return s.user}catch{}return null}
- async function user(){if(!window.cloudClient)return null;if(navigator.onLine===false)return cached();const {data:s,error:se}=await cloudClient.auth.getSession();if(se)throw se;if(!s?.session)return null;const {data,error}=await cloudClient.auth.getUser();if(error){if(error.status===401||error.status===403||error.name==='AuthSessionMissingError')return null;throw error}const u=data?.user;if(!u||u.is_anonymous)return null;localStorage.setItem(verifiedKey,JSON.stringify({id:u.id,at:Date.now()}));return u;}
- async function signOut(){if(navigator.onLine!==false){const {error}=await cloudClient.auth.signOut({scope:'local'});if(error)throw error}else localStorage.removeItem(authKey);localStorage.removeItem(verifiedKey);sessionStorage.removeItem('roadshop-active-workspace');}
- return {user,cached,signOut,authKey};
+ async function user(){if(!window.cloudClient)return (current=null);if(navigator.onLine===false)return (current=cached());const {data:s,error:se}=await cloudClient.auth.getSession();if(se)throw se;if(!s?.session)return (current=null);const {data,error}=await cloudClient.auth.getUser();if(error){if(error.status===401||error.status===403||error.name==='AuthSessionMissingError')return (current=null);throw error}const u=data?.user;if(!u||u.is_anonymous)return (current=null);localStorage.setItem(verifiedKey,JSON.stringify({id:u.id,at:Date.now()}));return (current=u);}
+ async function signOut(){if(navigator.onLine!==false){const {error}=await cloudClient.auth.signOut({scope:'local'});if(error)throw error}else localStorage.removeItem(authKey);current=null;localStorage.removeItem(verifiedKey);sessionStorage.removeItem('roadshop-active-workspace');}
+ return {user,cached,signOut,authKey,get current(){return current}};
 })();
 // Financial data is browser-only. No network requests are made by this adapter.
 const LocalBooks=(()=>{
@@ -25,19 +26,31 @@ const LocalBooks=(()=>{
   try{fn(o,v=>{result=v},fail)}catch(e){fail(e)}
  })}
  const ownerCheck=owner=>{if(typeof owner!=='string'||!owner)throw Error('Sign in to access device records.')};
+ async function canWrite(owner){
+  ownerCheck(owner);
+  const user=DeviceSession.current,commercial=window.RoadCommercial;
+  if(!commercial?.enrolled(user))return true;
+  return user.id===owner&&await commercial.canWrite(user)&&DeviceSession.current?.id===owner;
+ }
+ async function requireWrite(owner){
+  if(await canWrite(owner))return;
+  const error=Error(window.RoadCommercial.readOnly);
+  error.name='SubscriptionReadOnlyError';
+  throw error;
+ }
  async function list(owner){ownerCheck(owner);return transact('readonly',(o,done)=>{const q=o.index('owner').getAll(owner);q.onsuccess=()=>done(q.result.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')||a.id.localeCompare(b.id)))})}
  async function read(owner,id){ownerCheck(owner);return transact('readonly',(o,done)=>{const q=o.get([owner,id]);q.onsuccess=()=>done(q.result||null)})}
- async function create(owner,name){ownerCheck(owner);const w={id:crypto.randomUUID(),owner_id:owner,name,createdAt:new Date().toISOString(),revision:0,books:{}};return transact('readwrite',(o,done)=>{o.add(w);done(w)})}
- async function write(owner,id,revision,books){ownerCheck(owner);return transact('readwrite',(o,done,fail)=>{const q=o.get([owner,id]);q.onsuccess=()=>{const w=q.result;if(!w||w.revision!==revision)return fail(Error('Business changed in another tab. Reopen it before saving.'));const next={...w,books,revision:revision+1};o.put(next);done(next)}})}
- async function restore(owner,workspaces){ownerCheck(owner);if(!Array.isArray(workspaces)||!workspaces.length||workspaces.length>1000)throw Error('Invalid or empty backup.');const seen=new Set();const records=workspaces.map(w=>{if(!w||typeof w.id!=='string'||!w.id||w.id.length>100||seen.has(w.id)||typeof w.name!=='string'||!w.name.trim()||w.name.length>200)throw Error('Invalid business in backup.');seen.add(w.id);BookStore.checkBooks(w.books);return {id:w.id,owner_id:owner,name:w.name,createdAt:typeof w.createdAt==='string'?w.createdAt:new Date().toISOString(),revision:0,books:w.books}});return transact('readwrite',(o,done,fail)=>{const q=o.index('owner').getAll(owner);q.onsuccess=()=>{try{const existing=q.result,known=new Set(existing.map(w=>w.id)),txIds=new Set();for(const w of existing)for(const r of w.books['roadshop-ledger-v1']||[])txIds.add(r.id);let added=0;for(const w of records){if(known.has(w.id))continue;for(const r of w.books['roadshop-ledger-v1']||[]){if(txIds.has(r.id))throw Error('A transaction ID already exists in another business. No businesses were restored.');txIds.add(r.id)}o.add(w);added++}done(added)}catch(e){fail(e)}}})}
- async function erase(owner,expected){ownerCheck(owner);return transact('readwrite',(o,done,fail)=>{const q=o.index('owner').getAll(owner);q.onsuccess=()=>{const rows=q.result,versions=new Map(expected.map(w=>[w.id,w.revision]));if(rows.length!==versions.size||rows.some(w=>versions.get(w.id)!==w.revision))return fail(Error('Records changed since backup. Verify a fresh backup first.'));for(const w of rows)o.delete([owner,w.id]);done(rows.length)}})}
- return {list,read,create,write,restore,erase,archive};
+ async function create(owner,name){await requireWrite(owner);const w={id:crypto.randomUUID(),owner_id:owner,name,createdAt:new Date().toISOString(),revision:0,books:{}};return transact('readwrite',(o,done)=>{o.add(w);done(w)})}
+ async function write(owner,id,revision,books){await requireWrite(owner);return transact('readwrite',(o,done,fail)=>{const q=o.get([owner,id]);q.onsuccess=()=>{const w=q.result;if(!w||w.revision!==revision)return fail(Error('Business changed in another tab. Reopen it before saving.'));const next={...w,books,revision:revision+1};o.put(next);done(next)}})}
+ async function restore(owner,workspaces){await requireWrite(owner);if(!Array.isArray(workspaces)||!workspaces.length||workspaces.length>1000)throw Error('Invalid or empty backup.');const seen=new Set();const records=workspaces.map(w=>{if(!w||typeof w.id!=='string'||!w.id||w.id.length>100||seen.has(w.id)||typeof w.name!=='string'||!w.name.trim()||w.name.length>200)throw Error('Invalid business in backup.');seen.add(w.id);BookStore.checkBooks(w.books);return {id:w.id,owner_id:owner,name:w.name,createdAt:typeof w.createdAt==='string'?w.createdAt:new Date().toISOString(),revision:0,books:w.books}});return transact('readwrite',(o,done,fail)=>{const q=o.index('owner').getAll(owner);q.onsuccess=()=>{try{const existing=q.result,known=new Set(existing.map(w=>w.id)),txIds=new Set();for(const w of existing)for(const r of w.books['roadshop-ledger-v1']||[])txIds.add(r.id);let added=0;for(const w of records){if(known.has(w.id))continue;for(const r of w.books['roadshop-ledger-v1']||[]){if(txIds.has(r.id))throw Error('A transaction ID already exists in another business. No businesses were restored.');txIds.add(r.id)}o.add(w);added++}done(added)}catch(e){fail(e)}}})}
+ async function erase(owner,expected){await requireWrite(owner);return transact('readwrite',(o,done,fail)=>{const q=o.index('owner').getAll(owner);q.onsuccess=()=>{const rows=q.result,versions=new Map(expected.map(w=>[w.id,w.revision]));if(rows.length!==versions.size||rows.some(w=>versions.get(w.id)!==w.revision))return fail(Error('Records changed since backup. Verify a fresh backup first.'));for(const w of rows)o.delete([owner,w.id]);done(rows.length)}})}
+ return {list,read,create,write,restore,erase,archive,canWrite,requireWrite};
 })();
 
 // Keep existing book keys and module APIs for compatibility.
 const BookStore=(()=>{
  const keys=['roadshop-ledger-v1','roadshop-quotes-v1','roadshop-shop-rates-v1','roadshop-profile-v2'],archiveKey=LocalBooks.archive,local=window.localStorage,api=window.cloudClient;
- let workspace,owner,busy=false,invalid=false;
+ let workspace,owner,busy=false,invalid=false,readOnly=false;
  const status=()=>document.getElementById('workspace-status');
   function checkBooks(books){
     if (!books || typeof books!=='object' || Array.isArray(books)) throw Error('Invalid workspace data.');
@@ -76,10 +89,11 @@ const BookStore=(()=>{
   window.addEventListener('storage',e=>{if(e.key===DeviceSession.authKey||e.key===null){if(!DeviceSession.cached()&&navigator.onLine===false){invalid=true;document.body.setAttribute('data-auth-pending','');location.replace('account.html')}}});
   const data=await LocalBooks.read(owner,target.id);
   if(!data||data.books[archiveKey]){local.removeItem('roadshop-last-'+owner);sessionStorage.removeItem(active);location.replace('account.html?switch=1');return false}
+  readOnly=!await LocalBooks.canWrite(owner);
   if(invalid)return false;checkBooks(data.books);workspace=data;sessionStorage.setItem(active,JSON.stringify(target));status().textContent=data.name+' · On this device';
   // Unscoped legacy local keys are not automatically attached to a signed-in account.
   const importBtn=document.getElementById('migrate');if(importBtn)importBtn.hidden=true;
   window.addEventListener('focus',()=>refresh().catch(e=>status().textContent=e.message));setInterval(()=>refresh().catch(e=>status().textContent=e.message),30000);return true;
  }
- return {start,checkBooks,get id(){if(!workspace||invalid)throw Error('Sign in to access a business.');return workspace.id},get ownerId(){if(!workspace||invalid)throw Error('Sign in to access a business.');return owner},get name(){return workspace?.name||''},getItem(key){if(!workspace||invalid)throw Error('Sign in to access a business.');return Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null},async setItem(key,raw){return this.setItems({[key]:raw})},async setItems(values){if(!workspace||invalid)throw Error('Sign in to access a business.');const books={...workspace.books};for(const [key,raw] of Object.entries(values)){if(!keys.includes(key))throw Error('Unknown record category.');books[key]=JSON.parse(raw)}await write(books)}};
+ return {start,checkBooks,get readOnly(){return readOnly},get id(){if(!workspace||invalid)throw Error('Sign in to access a business.');return workspace.id},get ownerId(){if(!workspace||invalid)throw Error('Sign in to access a business.');return owner},get name(){return workspace?.name||''},getItem(key){if(!workspace||invalid)throw Error('Sign in to access a business.');return Object.hasOwn(workspace.books,key)?JSON.stringify(workspace.books[key]):null},async setItem(key,raw){return this.setItems({[key]:raw})},async setItems(values){if(!workspace||invalid)throw Error('Sign in to access a business.');const books={...workspace.books};for(const [key,raw] of Object.entries(values)){if(!keys.includes(key))throw Error('Unknown record category.');books[key]=JSON.parse(raw)}await write(books)}};
 })();

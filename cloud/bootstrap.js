@@ -2,7 +2,15 @@ BookStore.start().then(async ready=>{
   if(!ready)return;
   const backupScript=document.createElement('script');backupScript.src='core/backup.js';backupScript.onload=()=>{const main=document.querySelector('main');if(main)EarnKeepBackup.attach(BookStore.ownerId,main)};document.head.append(backupScript);
   const entry=document.getElementById('entry-script').dataset.src;
-  if(typeof RoadCommercial!=='undefined'){const feature=({'workspace.js':'dashboard','finance.js':'finance','app.js':'finance','trucking.js':'trucking','mechanic.js':'mechanic','insights.js':'insights','tax-planning.js':'tax','reports.js':'reports','quotes.js':'mechanic'})[entry];if(entry==='workspace.js'){try{const s=await RoadCommercial.load();if(!RoadCommercial.access(s)){const a=document.createElement('a');a.href='billing.html';a.textContent=' Subscription inactive · manage billing or export';document.getElementById('workspace-status')?.append(a);}}catch{}}RoadCommercial.activity(feature);}
+  if(BookStore.readOnly){
+    const notice=document.createElement('p');
+    notice.className='tax-warning';notice.setAttribute('role','status');
+    notice.textContent=RoadCommercial.readOnly+' ';
+    const billing=document.createElement('a');billing.href='subscribe.html';billing.textContent='Subscription options';
+    notice.append(billing);document.querySelector('main').prepend(notice);
+  }else if(entry==='workspace.js'&&!RoadCommercial.enrolled(DeviceSession.current)){
+    try{const s=await RoadCommercial.load();if(!RoadCommercial.access(s)){const a=document.createElement('a');a.href='billing.html';a.textContent=' Subscription inactive · manage billing or export';document.getElementById('workspace-status')?.append(a);}}catch{}
+  }
 
   const profile=JSON.parse(BookStore.getItem(Planning.key)||'null');
   const businessReady=profile?.complete===true && !!Planning.registry[profile.job];
@@ -31,7 +39,9 @@ BookStore.start().then(async ready=>{
   document.body.append(script);
 }).catch(showAuthError);
 function businessShortcuts(job){
-  return job==='truck'?[{label:'Add load',href:'trucking.html?tab=loads&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}]:[{label:'Quotes',href:'quotes.html'}];
+  if(job!=='truck')return [{label:'Quotes',href:'quotes.html'}];
+  if(BookStore.readOnly)return [{label:'Trucking',href:'trucking.html'},{label:'Reports',href:'reports.html'}];
+  return [{label:'Add load',href:'trucking.html?tab=loads&add=load'},{label:'Add Fuel',href:'finance.html?tab=ledger&add=fuel'},{label:'Add expense',href:'finance.html?tab=ledger&add=expense'}];
 }
 function installBusinessTabs(entry,job){
   // Use the existing Ledger button on the ledger page so its settings view still works.
