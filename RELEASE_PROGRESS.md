@@ -54,3 +54,9 @@
 - QA-01 passed in a local Chromium run, which advanced to a second fixture defect, QA-02. The per diem calendar and legacy travel form share a deductible-percentage label. The browser selector now identifies the calendar's numeric field specifically and retains all four calendar state checks.
 - Local service-worker browser suite passed. Independent published browser launch reached a network error before the first page; direct Node asset verification had already passed. Use the GitHub published-browser runner and try the workspace proxy explicitly for independent reproduction.
 - **Exact next action:** Confirm browser results after QA-02, review compatibility for previously linked unassigned payments, commit the build and start a fresh published beta gate.
+
+## Checkpoint 7 · First complete browser pass and legacy compatibility
+
+- The independent browser suite passed on a local checkout with fictional intercepted auth and finance fixtures after QA-01 and QA-02. It completed all 5 occupation scenarios at 320/390/1280-pixel layouts, including mechanic logo/PDF, encrypted backup, install-style offline reload, and Google-style PKCE redirects. This run preceded the legacy report compatibility edit and is local evidence only.
+- TRK-01 now resolves legacy paid loads by their saved ledger links in reporting, without rewriting saved rows. The targeted trucking suite passed after the change with 6 load-assignment and 6 escrow assertions in addition to existing checks.
+- **Exact next action:** Extend the browser gate with the requested 1,208 versus 1,250 mile example and the posting flows that lack end-to-end coverage. Then commit the candidate and run on the published beta.
