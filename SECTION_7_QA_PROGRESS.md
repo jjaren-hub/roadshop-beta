@@ -7,3 +7,10 @@
 - This log lives on `qa/section-7` outside deployed Pages assets. Keep shared enforcement/live payments untouched. Use anonymous browser flows, read-only backend inspection, and isolated fictional fixtures. Physical device results require device evidence.
 - Current phase: inventory. No tests executed on the pinned build yet.
 - **Next:** Compare subscription changes since the prior QA, inspect the deployed billing server and data permissions, verify public browser/copy behavior, then run and repair beta regressions.
+
+## Baseline findings
+
+- [Pages run 46151192477](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46151192477) passed. [Prelaunch QA run 46151191971](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46151191971) failed at `tests/commercial.mjs:26` because two fixtures still expect write access for terminal canceled subscriptions with future dates. Current policy distinguishes scheduled cancellation from terminal cancellation. Update those fixtures and cover both states.
+- Deployed commercial and Stripe webhook Edge Functions are at version 4. Read-only metadata confirmed RLS enabled on all nine billing tables and no anonymous or authenticated table access or public billing RPC execution for the grants checked. Global enforcement remains off. Basic is enabled at 499 cents monthly, the seven-day trial is enabled, and support email matches the owner-provided spelling.
+- The existing Support page hides the email during sign-out or status failure. The beta pricing pages defer renewal disclosures to Stripe. Review and cover public contact, recovery copy and pricing disclosures.
+- **Next:** Confirm public browser behavior, finish server review, then fix stale fixtures and beta customer-facing defects.
