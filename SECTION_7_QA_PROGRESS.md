@@ -78,3 +78,10 @@
 1. Owner: with the designated Sandbox account on physical Android Chrome and iPhone Safari, verify signup/email and Google callback, installed PWA update, successful and canceled Stripe return, cancellation/reactivation, and expired record views and downloads. Record device, OS and browser versions and results.
 2. Owner: verify Stripe Public details, receipt and portal support contact and confirm tax treatment and cancellation settings. Counsel should resolve the missing incorporated policy, access wording, consent and notice flows and data disclosure accuracy before live release.
 3. Use an isolated billing environment to apply server-side eligibility, then verify parallel Checkout requests resolve to one session/subscription, retry and webhook reordering are safe, and trial/renewal access boundaries are correct. Record results here before seeking release approval.
+
+## Continuation from `8cfe098` · 2026-11-28
+
+- Reconfirmed beta main at `8cfe098c2534fd8ac565cdd4df9f437e08f73db4`. Previous passing test evidence remains accepted. This pass will exercise new or affected coverage only.
+- Supabase lists only the existing project shared with production. Keep changes isolated to beta repository code and local tests until a separate project is available for Stripe Sandbox verification.
+- Open release gates: server-side beta eligibility, settled paid-through and out-of-order snapshots, checkout and webhook concurrency on isolated infrastructure, real auth and Stripe redirects, physical devices, Stripe settings verification, and approved billing terms.
+- **Next:** Inspect deployed billing code and database definitions, then implement and test an isolated beta candidate.
