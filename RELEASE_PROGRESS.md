@@ -172,3 +172,10 @@
 - Cross-version local data continuity passed. The isolated fictional workspace and its pre-release $42.17 ledger entry survived the release and refresh. A real browser with the previous live service worker installed received the new cache, removed the prior cache, loaded offline and reconnected.
 - [Hosted live browser QA 46102877188](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46102877188), job `140849059077`, is in progress. The workflow target change was committed as `dcf03905b84a7085d9f5e1d296fb28cfb07d8ce7`.
 - **Exact next action:** Confirm the hosted live browser result and the final beta/production heads. Commit the final release report. If a critical live browser gate fails, apply the verified rollback procedure.
+
+## Checkpoint 23 · Production-only Cloudflare analytics injection
+
+- [Live browser run 46102877188](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46102877188) failed the aggregated console assertion after completing the trucking and offline checks. All 92 reported diagnostics were the same CSP block of Cloudflare's injected `static.cloudflareinsights.com/beacon.min.js`. The analytics script is outside the approved deployment tree and the production CSP correctly blocks it.
+- PROD-02: Production's Cloudflare edge injects its optional analytics script. Retain the production CSP and Cloudflare settings. Add exact diagnostics for the explicitly blocked provider script, enforce that the browser receives no beacon or analytics-collection response, and retain the existing application error, network, auth and functional assertions. Report the provider console limitation in the final release status.
+- This result shows no critical application failure and does not trigger rollback. The other live gates completed successfully. The hosted live suite must still complete all five occupation workflows before the release is marked verified.
+- **Exact next action:** Run the scoped production-only analytics assertion change from the beta recovery branch and record the real live browser result.
