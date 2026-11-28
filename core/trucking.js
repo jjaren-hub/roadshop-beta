@@ -49,7 +49,7 @@ function loadFuelEstimate(v,data,rows,profile,today){
  requireDate(today);
  const t=data.trucks.find(x=>x.name===v.truck||x.id===v.truck);if(!t)throw Error('Choose a truck to estimate fuel.');
  const from=new Date(Date.parse(today)-29*86400000).toISOString().slice(0,10);
- const miles=num(v.loaded,'loaded miles')+num(v.empty,'empty miles');
+ const miles=v.routeMiles!==undefined&&String(v.routeMiles).trim()!==''?num(v.routeMiles,'estimated driven miles'):num(v.loaded,'loaded miles')+num(v.empty,'empty miles');
  const own=fuelEconomy(rows,t,from,today),fleet=fuelEconomy(rows,null,from,today);
  const result={from,to:today,miles};
  for(const k of ['diesel','def']){
@@ -97,8 +97,8 @@ function loadRecord(v,existing,today,id){
  if(!loadStages.slice(0,3).includes(v.stage))throw Error('Choose Planned, Picked up or Delivered.');
  if(v.stage!=='Planned'&&v.pickupDate>today||v.stage==='Delivered'&&v.deliveryDate>today)throw Error('Actual pickup or delivery cannot be in the future.');
  if(v.linehaul===''||v.linehaul==null||v.fsc===''||v.fsc==null)throw Error('Enter both rates; use zero if not applicable.');
- const revenue=loadRevenue(v),comments=String(v.comments??old?.comments??'').trim();if(comments.length>2000)throw Error('Load comments must be 2,000 characters or fewer.');
- return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue,...(comments?{comments}:{})};
+ const routeMiles=v.routeMiles==null||String(v.routeMiles).trim()===''?null:num(v.routeMiles,'estimated driven miles');const revenue=loadRevenue(v),comments=String(v.comments??old?.comments??'').trim();if(comments.length>2000)throw Error('Load comments must be 2,000 characters or fewer.');
+ return {kind:'record',id,number,truck,pickupDate:v.pickupDate,pickupCity,pickupAddress:clean(v.pickupAddress,250),deliveryDate:v.deliveryDate,deliveryCity,deliveryAddress:clean(v.deliveryAddress,250),stage:v.stage,...revenue,...(routeMiles!==null?{routeMiles}:{}),...(comments?{comments}:{})};
 }
 function loadPaymentParts(load){const q=loadRevenue(load);return [['Linehaul',q.linehaulCents],['Empty mile pay',q.emptyCents||0],['Fuel surcharge',q.fscCents]].filter(([,cents])=>cents>0);}
 function loadPaymentMatches(load,ledger,date,category,cents){
@@ -179,7 +179,45 @@ const iftaCodes=[...iftaMembers,...iftaOther].sort();
 const iftaCode=x=>{const s=String(x||'').trim().toUpperCase();return s==='PEI'?'PE':s==='PQ'?'QC':s;};
 function iftaRecord(v,existing,today){requireDate(v.date);requireDate(today);if(v.date>today)throw Error('Actual record cannot be dated in the future.');const jurisdiction=iftaCode(v.jurisdiction),miles=num(v.miles,'jurisdiction miles'),gallons=num(v.gallons,'tax-paid gallons');if(!v.truck||!iftaCodes.includes(jurisdiction))throw Error('Choose a valid state or province.');if(!miles&&!gallons)throw Error('Enter mileage or gallons.');if(gallons&&!String(v.note||'').trim())throw Error('Enter a fuel receipt or supporting reference.');if(existing.some(x=>x.id!==v.id&&x.truck===v.truck&&x.date===v.date&&iftaCode(x.jurisdiction)===jurisdiction&&Number(x.miles)===miles&&Number(x.gallons)===gallons&&normalize(x.note)===normalize(v.note)))throw Error('Matching IFTA record exists.');return {...v,jurisdiction,miles,gallons};}
 function iftaSummary(records,truck,quarter){const match=/^(\d{4})-Q([1-4])$/.exec(quarter);if(!match)throw Error('Enter a quarter such as 2026-Q4.');const selected=records.filter(x=>(!truck||x.truck===truck)&&x.date.slice(0,4)===match[1]&&Math.ceil(+x.date.slice(5,7)/3)===+match[2]);const groups=Object.create(null);let miles=0,gallons=0;for(const x of selected){const code=iftaCode(x.jurisdiction)||'Unknown',m=num(x.miles),g=num(x.gallons);const row=groups[code]??={jurisdiction:code,member:iftaMembers.includes(code),known:iftaCodes.includes(code),miles:0,gallons:0,count:0};row.miles+=m;row.gallons+=g;row.count++;miles+=m;gallons+=g;}return {miles,gallons,count:selected.length,groups:Object.values(groups).sort((a,b)=>a.jurisdiction.localeCompare(b.jurisdiction)),records:selected.slice().sort((a,b)=>b.date.localeCompare(a.date))};}
-function dashboard(data,rows,truck,from,to){const select=r=>(!truck||r.truck===truck)&&r.date>=from&&r.date<=to;const mile=data.mileage.filter(select);const l=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to);const t=F.total(l),loaded=mile.reduce((s,x)=>s+x.loaded,0),deadhead=mile.reduce((s,x)=>s+x.deadhead,0),gallons=mile.reduce((s,x)=>s+x.gallons,0),miles=loaded+deadhead;let fuel=0;for(const r of l)for(const x of F.lines(r))if(normalize(x.category)==='diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,loaded,deadhead,miles,gallons,mpg:gallons?miles/gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
+// Paid mileage is a load/contract metric, not odometer distance. Actual mileage
+// is measured by observed intervals; attribute an interval to its ending date.
+// Never add a manual interval and a fuel interval covering the same odometer range.
+function mileageReport(data,rows,truck,from,to){
+ requireDate(from);requireDate(to);if(to<from)throw Error('End must follow start.');
+ const selected=data.trucks.filter(t=>!truck||t.name===truck||t.id===truck),matches=(x,t)=>x===t.name||x===t.id,within=d=>d>=from&&d<=to;
+ const result={miles:0,loaded:0,deadhead:0,gallons:0,paidLoaded:0,paidEmpty:0,completedLoads:0,odometerMiles:0,manualMiles:0,missingBaselines:0,excludedManual:0,unknownTrucks:0,spanningIntervals:0,overlapMiles:0,sourceTrucks:0};
+ for(const t of selected){
+  const manual=data.mileage.filter(x=>matches(x.truck,t)),fuel=activeFuelRows(rows,t),intervals=[],unlocated=[];
+  const points=manual.filter(x=>Number.isSafeInteger(Number(x.odometer))&&Number(x.odometer)>0).map(x=>({date:x.date,odo:Number(x.odometer)}));
+  for(const x of fuel){const f=x.fuel;if(Number.isSafeInteger(f.odometer)&&f.odometer>=0)points.push({date:x.date,odo:f.odometer});}
+  const seen=new Set();
+  for(const x of fuel){
+   const f=x.fuel,k=f.purchaseId||x.date+'|'+f.odometer+'|'+f.previous;
+   if(seen.has(k))continue;seen.add(k);
+   if(!Number.isSafeInteger(f.odometer)||!Number.isSafeInteger(f.previous)||f.previous<0||f.odometer<f.previous){if(within(x.date))result.missingBaselines++;continue;}
+   const prior=points.filter(p=>p.odo===f.previous&&p.date<=x.date).map(p=>p.date).sort().at(-1);
+   intervals.push({date:x.date,start:f.previous,end:f.odometer,source:'odometer',prior});
+  }
+  for(const x of manual){const loaded=Number(x.loaded)||0,deadhead=Number(x.deadhead)||0,miles=loaded+deadhead,odo=Number(x.odometer);if(within(x.date)){result.loaded+=loaded;result.deadhead+=deadhead;}
+   if(miles<=0)continue;if(Number.isSafeInteger(odo)&&odo>=miles&&odo>0)intervals.push({date:x.date,start:odo-miles,end:odo,source:'manual',prior:points.filter(p=>p.odo===odo-miles&&p.date<=x.date).map(p=>p.date).sort().at(-1)});else if(within(x.date))unlocated.push(x);
+  }
+  intervals.sort((a,b)=>a.date.localeCompare(b.date)|| (a.source===b.source?0:a.source==='odometer'?-1:1)||a.start-b.start);
+  let covered=[],hasPeriod=false,truckMiles=0;
+  for(const x of intervals){if(x.date>to)continue;let fresh=x.end-x.start;for(const c of covered)fresh-=Math.max(0,Math.min(c[1],x.end)-Math.max(c[0],x.start));fresh=Math.max(0,fresh);
+   if(x.end>x.start){covered.push([x.start,x.end]);covered.sort((a,b)=>a[0]-b[0]);const merged=[];for(const c of covered){const last=merged.at(-1);if(last&&c[0]<=last[1])last[1]=Math.max(last[1],c[1]);else merged.push(c.slice());}covered=merged;}
+   if(within(x.date)){hasPeriod=true;truckMiles+=fresh;result.overlapMiles+=x.end-x.start-fresh;if(x.source==='odometer'){result.odometerMiles+=fresh;if(fresh&&(!x.prior||x.prior<from))result.spanningIntervals++;}else result.manualMiles+=fresh;}
+  }
+  if(hasPeriod){result.excludedManual+=unlocated.length;}else if(unlocated.length){for(const x of unlocated){const n=(Number(x.loaded)||0)+(Number(x.deadhead)||0);truckMiles+=n;result.manualMiles+=n;}hasPeriod=true;}
+  if(hasPeriod){result.sourceTrucks++;result.miles+=truckMiles;}else result.unknownTrucks++;
+  const diesel=fuel.filter(x=>x.category==='Diesel'&&within(x.date));if(diesel.length)result.gallons+=diesel.reduce((n,x)=>n+(Number(x.fuel.gallons)||0),0);else result.gallons+=manual.filter(x=>within(x.date)).reduce((n,x)=>n+(Number(x.gallons)||0),0);
+ }
+ // Older mileage records may lack a fleet record. Preserve their totals in
+ // all-truck or explicitly matching reports, never assign them to another truck.
+ for(const x of data.mileage.filter(x=>within(x.date)&&(!truck||x.truck===truck)&&!data.trucks.some(t=>matches(x.truck,t)))){const l=Number(x.loaded)||0,d=Number(x.deadhead)||0;result.loaded+=l;result.deadhead+=d;result.miles+=l+d;result.manualMiles+=l+d;result.gallons+=Number(x.gallons)||0;}
+ for(const x of data.loads.filter(x=>x.kind==='record'&&['Delivered','Paid'].includes(x.stage)&&within(x.deliveryDate)&&(!truck||x.truck===truck||selected.some(t=>matches(x.truck,t))))){result.completedLoads++;result.paidLoaded+=Number(x.loaded)||0;if(Number(x.emptyRate)>0)result.paidEmpty+=Number(x.empty)||0;}
+ result.paidMiles=result.paidLoaded+result.paidEmpty;return result;
+}
+function dashboard(data,rows,truck,from,to){const m=mileageReport(data,rows,truck,from,to),l=rows.filter(r=>r.trade==='Trucking'&&(!truck||r.vehicle===truck)&&r.date>=from&&r.date<=to),t=F.total(l),miles=m.miles;let fuel=0;for(const r of l)for(const x of F.lines(r))if(normalize(x.category)==='diesel'&&x.classification==='expense')fuel+=x.cents*(r.sign||1);return {...t,...m,mpg:m.gallons&&miles?miles/m.gallons:null,rpm:miles?t.income/miles/100:null,cpm:miles?t.expense/miles/100:null,ppm:miles?t.net/miles/100:null,fuelPerMile:miles?fuel/miles/100:null,escrow:escrow(rows,truck)};}
 // Report dates refer to actual ledger dates, not settlement work-week dates.
 function reportRange(preset,today){
  requireDate(today);const shift=(d,n)=>new Date(Date.parse(d)+n*86400000).toISOString().slice(0,10);
@@ -229,5 +267,5 @@ function deleteTruck(data,rows,profile,id){
  if(links.length)throw Error('Truck has linked records: '+links.map(x=>x.label+' ('+x.count+')').join(', ')+'. Keep its history or correct those records first.');
  return {...data,trucks:data.trucks.filter(x=>x.id!==id)};
 }
-return {activeFuelRows,fuelEconomy,loadFuelEstimate,currentMileage,fuelPurchase,loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,escrowHistory,checkEscrowMovement,serviceReminder,maintenanceRecord,repairRows,travel,validateTravelRecord,iftaCodes,iftaMembers,iftaRecord,iftaSummary,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
+return {activeFuelRows,fuelEconomy,loadFuelEstimate,currentMileage,fuelPurchase,loadStages,loadRevenue,loadRecord,loadPaymentParts,loadPaymentMatches,payLoad,defaults,presets,blank,state,suggest,parseCSV,settlement,duplicate,row,candidates,post,reconciliation,defaultsFor,calculate,financing,leasePurchase,schedule,lease,changeSchedule,recordPayment,escrow,escrowHistory,checkEscrowMovement,serviceReminder,maintenanceRecord,repairRows,travel,validateTravelRecord,iftaCodes,iftaMembers,iftaRecord,iftaSummary,mileageReport,dashboard,reportRange,periodReport,num,money,requireDate,truckDependencies,deleteTruck};
 })();
