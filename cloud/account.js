@@ -12,7 +12,7 @@
   try{if(query.has('continue')||recoveryCallback||query.has('switch'))sessionStorage.removeItem(subscriptionKey);else if(query.has('subscribe')||query.has('signup'))sessionStorage.setItem(subscriptionKey,'1')}catch{}
   function subscriptionIntent(){try{return sessionStorage.getItem(subscriptionKey)==='1'}catch{return query.has('subscribe')}}
   const switchMode=query.has('switch');
-  let creatingFirst=null;
+  let creatingFirst=null, openingSubscription=false;
   const auth = api.auth;
   const check = ({data,error}) => { if(error) throw error; return data; };
   const run = fn => async event => {
@@ -65,6 +65,7 @@
     location.assign('ledger.html');
   }
   async function display(session) {
+    if(openingSubscription)return;
     const version=++displayVersion;
     user=null;$('member').hidden=true;$('guest').hidden=true;$('identity').textContent='';$('businesses').replaceChildren();$('archived-businesses').replaceChildren();
     $('account-title').textContent=query.has('signup')?'Create your EarnKeep account':'Sign in to EarnKeep';
@@ -73,7 +74,7 @@
     $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;
     $('start-setup').hidden=true;$('create').hidden=true;$('local-disclosure').hidden=true;
     if (!user){sessionStorage.removeItem(selection);if($('notice').textContent==='Checking your sign-in…')say('');return;}
-    if(!recoveryCallback&&!switchMode&&navigator.onLine!==false&&subscriptionIntent()){try{sessionStorage.removeItem(subscriptionKey)}catch{}location.replace('subscribe.html');return;}
+    if(!recoveryCallback&&!switchMode&&navigator.onLine!==false&&subscriptionIntent()){openingSubscription=true;try{sessionStorage.removeItem(subscriptionKey)}catch{}location.replace('subscribe.html');return;}
     $('account-title').textContent=recoveryCallback?'Reset your password':'Your account';
     if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
@@ -151,6 +152,7 @@
   });
   auth.onAuthStateChange((event,session)=>{
     if (event==='PASSWORD_RECOVERY'){
+      try{sessionStorage.removeItem(subscriptionKey)}catch{}
       $('change').closest('details').open=true; say('Enter a new password below.');
     }
     if (event==='SIGNED_OUT') display(null);
