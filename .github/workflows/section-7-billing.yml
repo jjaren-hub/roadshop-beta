@@ -1,0 +1,33 @@
+name: Section 7 isolated billing
+on:
+  push:
+    branches: [qa/section-7]
+    paths:
+      - ".github/billing-beta/**"
+      - ".github/workflows/section-7-billing.yml"
+      - "cloud/commercial.js"
+      - "commercial.js"
+      - "terms.html"
+      - "privacy.html"
+permissions:
+  contents: read
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Locate PostgreSQL
+        run: |
+          if ! command -v pg_config >/dev/null || [[ ! -x "$(pg_config --bindir)/initdb" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql
+          fi
+          echo "PG_BIN=$(pg_config --bindir)" >> "$GITHUB_ENV"
+      - name: Install PostgreSQL client for the isolated fixture
+        run: npm install --no-save --ignore-scripts pg@8.16.3
+      - name: Test the candidate with concurrent database connections and fictional Stripe
+        run: node .github/billing-beta/run.mjs "$PG_BIN" "$PWD/node_modules/pg/lib/index.js"

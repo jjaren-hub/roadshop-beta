@@ -13,8 +13,12 @@ const cases=[
  [policy.testEnabled(fixture,{...status,checkoutMode:'live'}),false],
  [policy.testEnabled(fixture,{checkoutEnabled:false,checkoutMode:'test'}),false],
  [policy.paidAccess({status:'trialing',trialEnd:past,periodEnd:future}),false],
- [policy.paidAccess({status:'canceled',cancelAtPeriodEnd:true,periodEnd:future}),true],
- [policy.paidAccess({status:'canceled',paidThrough:future}),true],
+ [policy.paidAccess({status:'active',cancelAtPeriodEnd:true,periodEnd:future}),true],
+ [policy.paidAccess({status:'canceled',cancelAtPeriodEnd:true,periodEnd:future}),false],
+ [policy.paidAccess({status:'canceled',paidThrough:future}),false],
+ [policy.canCheckout({status:'canceled',periodEnd:future}),true],
+ [policy.canReactivate({status:'active',cancelAtPeriodEnd:true,periodEnd:future,hasCustomer:true}),true],
+ [policy.canReactivate({status:'canceled',cancelAtPeriodEnd:true,periodEnd:future,hasCustomer:true}),false],
  [policy.paidAccess({status:'past_due',paidThrough:past,periodEnd:future}),false],
  [policy.paidAccess({status:'past_due',paidThrough:future}),true],
  [policy.paidAccess({status:'active',periodEnd:future},Date.parse(future)),false],
@@ -29,7 +33,7 @@ location.origin='https://earnkeep.app';location.pathname='/roadshop-beta/finance
 console.log('PASS subscription policy: '+(cases.length+2)+' assertions');
 }
 function node(tag){return {tag,children:[],textContent:'',append(...items){this.children.push(...items)},replaceChildren(){this.children=[]},add(x){this.children.push(x)}}}
-const root=node('main'),feedback=node('p'),document={body:{dataset:{commercial:'support'}},getElementById:id=>id==='commercial-view'?root:feedback,createElement:node};
+const root=node('main'),feedback=node('p'),contact=node('a'),document={body:{dataset:{commercial:'support'}},getElementById:id=>id==='commercial-view'?root:id==='support-email'?contact:feedback,createElement:node};
 const calls=[],cloudClient={auth:{getUser:async()=>({data:{user:{id:'fictional-support-user'}}}),onAuthStateChange(){}}},commercial={load:async()=>({supportEmail:'support@example.invalid'}),call:async(action,args)=>{calls.push({action,args});return {items:[]}}};
 new Function('RoadCommercial','document','window','cloudClient','Option',source)(commercial,document,{cloudClient},cloudClient,function Option(text,value){this.textContent=text;this.value=value});
 await new Promise(resolve=>setTimeout(resolve,0));
@@ -37,8 +41,10 @@ const flatten=n=>typeof n==='string'?[]:[n,...(n.children||[]).flatMap(flatten)]
 const all=()=>flatten(root),find=(tag,text)=>all().find(n=>n.tag===tag&&n.textContent===text);
 assert(!find('h2','Release notes'));assert(!all().some(n=>n.textContent==='Phase 9'));
 for(const heading of ['Help center','Send feedback or support request','Privacy and terms'])assert(find('h2',heading),heading+' missing');
-assert.equal(find('a','Email support').href,'mailto:support@example.invalid');
+assert.equal(contact.href,'mailto:support@example.invalid');
+assert.equal(contact.textContent,'support@example.invalid');
+assert(readFileSync('support.html','utf8').includes('href="mailto:EarnKeepsuport@gmail.com"'));
 assert.equal(find('a','Privacy Policy').href,'privacy.html');assert.equal(find('a','Terms of Service').href,'terms.html');
 assert(all().some(n=>n.value==='deletion'));
 const message=all().find(n=>n.tag==='textarea');message.value='Fictional support request';await find('button','Submit request').onclick();assert.deepEqual(calls[0],{action:'feedback',args:{kind:'bug',message:'Fictional support request',attachment:null}});await find('button','View my support requests').onclick();assert(find('p','No requests yet.'));assert.equal(calls[1].action,'myFeedback');
-console.log('PASS support cleanup, contact and legal links, request submission and history');
+console.log('PASS support cleanup, contact and legal links, request submission and history: 14 assertions');
