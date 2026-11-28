@@ -1,0 +1,48 @@
+name: Verify EarnKeep on Cloudflare
+
+on:
+  push:
+    branches: [release/earnkeep-final-qa]
+    paths: [.github/workflows/cloudflare-release.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EARNKEEP_TEST_URL: https://a963554e.roadshop.pages.dev/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a33cee0a3e33d999492561bf6ea0dc17b6fc6f20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts playwright-core@1.65.1
+      - name: Configure Chrome
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            npx playwright-core install --with-deps chromium
+          fi
+      - name: Run published Cloudflare browser workflows with fictional data
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync, writeFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const root=new URL(process.env.EARNKEEP_TEST_URL);
+          assert(['a963554e.roadshop.pages.dev','earnkeep.app'].includes(root.hostname));
+          const config=await fetch(new URL('cloud/config.js',root),{signal:AbortSignal.timeout(15000)});
+          assert(config.ok);
+          const hostname=(await config.text()).match(/https:\/\/([a-z0-9]+\.supabase\.co)/)?.[1];
+          assert(hostname,'Expected the approved public Supabase hostname');
+          const path='.github/qa/browser-auth-first.mjs';
+          const suite=readFileSync(path,'utf8');
+          assert(suite.includes('fixture.supabase.co'));
+          writeFileSync(path,suite.replaceAll('fixture.supabase.co',hostname));
+          JS
+          node .github/qa/browser-auth-first.mjs
