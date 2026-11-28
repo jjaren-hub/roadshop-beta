@@ -25,7 +25,7 @@
     if(activating||!reg?.waiting||!navigator.serviceWorker.controller)return false;
     if(!manual&&interacted)return false;
     if(document.querySelector('dialog[open]')){say('Save or close the open entry before refreshing.');return false;}
-    activating=true;if(refresh)refresh.disabled=true;
+    activating=true;let accepted=false;if(refresh)refresh.disabled=true;
     try{
       await window.flushWorkspaceDraft?.();await window.flushOfflineDraft?.();
       if(!manual&&interacted)return false;
@@ -36,11 +36,11 @@
         channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data?.status)};
         waiting.postMessage({type:'SAFE_ACTIVATE_UPDATE'},[channel.port2]);
       });
-      if(answer==='activating'){say('Applying update…');return true;}
+      if(answer==='activating'){accepted=true;say('Applying update…');setTimeout(()=>{if(!reloading){activating=false;if(refresh)refresh.disabled=false;say('Update activation delayed. Reopen EarnKeep to retry.')}},15000);return true;}
       say(answer==='busy'?'Close other EarnKeep windows, then refresh again.':'Update not ready. Close and reopen EarnKeep to retry.');
       return false;
     }catch(e){say(e.message||'Could not apply update.');return false;}
-    finally{if(!reloading){activating=false;if(refresh)refresh.disabled=false;}}
+    finally{if(!accepted&&!reloading){activating=false;if(refresh)refresh.disabled=false;}}
   }
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
     if(activating&&!reloading){reloading=true;location.reload();}
