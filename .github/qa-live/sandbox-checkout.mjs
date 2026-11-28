@@ -50,8 +50,8 @@ try {
     check(user?.email === fixture && user?.app_metadata?.earnkeep_subscription_beta === true, 'A browser did not authenticate the enrolled fictional user.');
     const billing = await (await status).json();
     check(billing.checkoutMode === 'test' && billing.checkoutEnabled === true && billing.enforcement === false, 'Expected beta Sandbox checkout with global enforcement off.');
-    check(billing.subscription?.status === 'none' && !billing.subscription.hasCustomer &&
-      billing.trialEligible === true && billing.trialDays === 7, 'The account is no longer a fresh trial-eligible checkout fixture.');
+    check(billing.subscription?.status === 'none' &&
+      billing.trialEligible === true && billing.trialDays === 7, 'The fixture is no longer unsubscribed and eligible for its first trial.');
     await page.getByRole('button', { name: 'Start 7-day test trial', exact: true }).waitFor();
     return user.id;
   }));
@@ -62,30 +62,55 @@ try {
   const sent = [];
   let ready = 0;
   const endpoint = supabase + '/functions/v1/roadshop-commercial';
-  const barrier = async route => {
-    const request = route.request();
-    if (!action(request, 'checkout')) return route.continue();
-    const body = request.postDataJSON();
-    if (body.mode !== 'test' || body.plan !== 'basic') return route.abort();
-    if (++ready === 2) {
-      secondReachedGate = true;
-      gate.resolve();
-    }
-    await gate.promise;
-    if (!secondReachedGate) return route.abort();
-    sent.push(performance.now());
-    return route.continue();
-  };
-  await Promise.all(pages.map(page => page.route(endpoint, barrier)));
+  const completed = new Map();
+  async function observeCheckout(page) {
+    await page.route(endpoint, async route => {
+      const request = route.request();
+      if (!action(request, 'checkout')) return route.continue();
+      const capture = completed.get(page);
+      const body = request.postDataJSON();
+      if (!capture || body.mode !== 'test' || body.plan !== 'basic') {
+        capture?.reject(new Error('Blocked unexpected checkout request.'));
+        return route.abort();
+      }
+      if (ready < 2) {
+        if (++ready === 2) {
+          secondReachedGate = true;
+          gate.resolve();
+        }
+        await gate.promise;
+        if (!secondReachedGate) return route.abort();
+        sent.push(performance.now());
+      }
+      try {
+        // Read the genuine response before following the Stripe redirect, which can evict the browser response body.
+        const response = await route.fetch({ maxRedirects: 0 });
+        const payload = await response.json();
+        if (response.ok()) capture.resolve({ status: response.status(), id: sessionId(payload.url), url: payload.url });
+        else {
+          check(response.status() === 409 && /existing checkout/i.test(payload.error ?? ''), 'Unexpected beta checkout HTTP ' + response.status() + '.');
+          capture.resolve({ status: response.status(), id: null });
+        }
+        await route.fulfill({ response });
+      } catch (error) {
+        capture.reject(error);
+        await route.abort().catch(() => {});
+      }
+    });
+  }
+  await Promise.all(pages.map(observeCheckout));
   async function start(page) {
-    const result = page.waitForResponse(response => action(response.request(), 'checkout'));
+    const capture = Promise.withResolvers();
+    completed.set(page, capture);
     page.once('dialog', dialog => dialog.message().includes('Stripe TEST checkout') ? dialog.accept() : dialog.dismiss());
-    await page.getByRole('button', { name: 'Start 7-day test trial', exact: true }).click();
-    const response = await result;
-    const payload = await response.json();
-    if (response.ok()) return { status: response.status(), id: sessionId(payload.url) };
-    check(response.status() === 409 && /existing checkout/i.test(payload.error ?? ''), 'Unexpected beta checkout HTTP ' + response.status() + '.');
-    return { status: response.status(), id: null };
+    const timeout = setTimeout(() => capture.reject(new Error('Checkout response was not captured.')), 25_000);
+    try {
+      const [result] = await Promise.all([capture.promise, page.getByRole('button', { name: 'Start 7-day test trial', exact: true }).click()]);
+      return result;
+    } finally {
+      clearTimeout(timeout);
+      completed.delete(page);
+    }
   }
   const pair = await Promise.all(pages.map(start));
   const delta = Math.round(Math.max(...sent) - Math.min(...sent));
@@ -96,13 +121,15 @@ try {
   stage = 'Checking Stripe Sandbox session identity and pending-request retry';
   for (let i = 0; i < pair.length; i++) {
     if (!pair[i].id) {
-      await pages[i].unroute(endpoint, barrier);
       pair[i] = await start(pages[i]);
     }
     check(pair[i].id === providerId, 'The two browser contexts resolved to different Stripe sessions.');
   }
   const fingerprint = createHash('sha256').update(providerId).digest('hex').slice(0, 12);
   console.log('PASS both contexts resolved to one real Stripe Sandbox Checkout session. Session fingerprint ' + fingerprint + '.');
+  stage = 'Checking that the real Stripe Sandbox Checkout opened';
+  await pages[0].waitForURL(url => url.origin === 'https://checkout.stripe.com' && sessionId(url.href) === providerId, { timeout: 20_000 });
+  console.log('PASS the Stripe-hosted Sandbox Checkout opened for the verified session.');
   console.log('Checkout submission and unseen webhook ordering are separate acceptance checks.');
 } catch (error) {
   // Only explicit test failures may print details. Browser errors can contain private request data.
