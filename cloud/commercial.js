@@ -33,7 +33,10 @@ function stripeUrl(result,action){
  let url;
  try{url=new URL(result?.url)}catch{throw Error('Stripe did not return a verified test session.')}
  const checkout=action==='checkout'&&url.hostname==='checkout.stripe.com'&&/^\/(?:c\/pay\/|pay\/)?cs_test_[A-Za-z0-9]+\/?$/.test(url.pathname)&&result.livemode!==true;
- const portal=action==='portal'&&url.hostname==='billing.stripe.com'&&/^\/p\/session\/test_[A-Za-z0-9_-]+\/?$/.test(url.pathname)&&result.livemode!==true;
+ // Stripe supports both the legacy path token and the current query-string token.
+ const legacyPortal=/^\/p\/session\/test_[A-Za-z0-9_-]+\/?$/.test(url.pathname)&&!url.search;
+ const queryPortal=/^\/p\/session\/?$/.test(url.pathname)&&/^\?secret=test_[A-Za-z0-9_-]+$/.test(url.search);
+ const portal=action==='portal'&&url.hostname==='billing.stripe.com'&&!url.hash&&(legacyPortal||queryPortal)&&result.livemode!==true;
  if(url.origin!=='https://'+url.hostname||url.username||url.password||!(checkout||portal))throw Error('Stripe did not return a verified test session.');
  return url.href;
 }
