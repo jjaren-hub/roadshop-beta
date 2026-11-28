@@ -14,3 +14,11 @@
 - Deployed commercial and Stripe webhook Edge Functions are at version 4. Read-only metadata confirmed RLS enabled on all nine billing tables and no anonymous or authenticated table access or public billing RPC execution for the grants checked. Global enforcement remains off. Basic is enabled at 499 cents monthly, the seven-day trial is enabled, and support email matches the owner-provided spelling.
 - The existing Support page hides the email during sign-out or status failure. The beta pricing pages defer renewal disclosures to Stripe. Review and cover public contact, recovery copy and pricing disclosures.
 - **Next:** Confirm public browser behavior, finish server review, then fix stale fixtures and beta customer-facing defects.
+
+## Browser and candidate milestone
+
+- Interactive desktop Chrome opened the published landing, subscription and support pages, then selected failed renewal and opened the fictional preview. The baseline Support page offered sign-in only and the preview displayed record and export recovery. Browser metadata errors were extension-generated. No customer records or Stripe sessions were touched.
+- Candidate fixes in `commercial.js`, `index.html`, `subscribe.html`, `subscribe.js`, `support.html`, `sw.js`, and `terms.html`: actual Billing checkout cancellation and success notices, failed-payment recovery, persistent public support contact, pre-checkout terms, clearer cancellation language, and cache revision. The regression files now exercise the actual server-configured Billing return and both scheduled and terminal canceled states.
+- Candidate static/accounting suites exited zero. Subscription browser suite passed 157 counted assertions (40 simulation, 117 actual app with fictional intercepted backend). Service-worker navigation suite passed. Full browser and hosted asset checks pending.
+- Shared billing security review found follow-up gates for owner review and isolated Sandbox verification. Deployment of a shared backend change is outside this beta-only scope. No backend settings were changed.
+- **Next:** Complete the full browser suite, check viewport and production isolation evidence, and commit the scoped beta repair after local checks.
