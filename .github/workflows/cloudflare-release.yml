@@ -50,6 +50,20 @@ jobs:
           const path='.github/qa/browser-auth-first.mjs';
           const suite=readFileSync(path,'utf8');
           assert(suite.includes('fixture.supabase.co'));
-          writeFileSync(path,suite.replaceAll('fixture.supabase.co',hostname));
+          let checked=suite.replaceAll('fixture.supabase.co',hostname);
+          const consoleCheck="  if(msg.type()==='error'&&!msg.text().startsWith('Failed to load resource:'))errors.push(msg.text());";
+          const responseCheck=" page.on('response',res=>{";
+          const endCheck=" await ctx.close();console.log('PASS browser workflows: '+(sub||label));";
+          assert(checked.includes(consoleCheck)&&checked.includes(responseCheck)&&checked.includes(endCheck));
+          checked=checked.replace(" let offlineFixture=false;", " let offlineFixture=false,blockedProviderBeacons=0;")
+            .replace(consoleCheck, String.raw`  if(root==='https://earnkeep.app/'&&msg.type()==='error'&&/^Loading the script 'https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js(?:\/[a-z0-9]+)?' violates the following Content Security Policy directive: "script-src 'self'"\..*The action has been blocked\.$/.test(msg.text())){
+            blockedProviderBeacons++;return;
+           }`+'\n'+consoleCheck)
+            .replace(responseCheck,responseCheck+String.raw`
+           const url=new URL(res.url());
+           if(root==='https://earnkeep.app/'&&((url.hostname==='static.cloudflareinsights.com'&&url.pathname.startsWith('/beacon.min.js'))||(url.origin===new URL(root).origin&&url.pathname==='/cdn-cgi/rum')))errors.push('Unexpected Cloudflare analytics response '+url.pathname);
+          `)
+            .replace(endCheck," if(blockedProviderBeacons)console.log('Verified '+blockedProviderBeacons+' CSP blocks of Cloudflare-injected analytics; no analytics response reached the browser.');\n"+endCheck);
+          writeFileSync(path,checked);
           JS
           node .github/qa/browser-auth-first.mjs
