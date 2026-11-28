@@ -76,19 +76,44 @@ try {
   await page.waitForURL(url => Boolean(verifiedSession(url.href)));
   console.log('PASS verified the original hosted Stripe Sandbox session before entering test details');
 
-  stage = 'Filling Stripe Sandbox Checkout with synthetic details';
-  const card = page.locator('#cardNumber');
-  await card.waitFor();
-  await card.fill('4242424242424242');
-  await page.locator('#cardExpiry').fill('1234');
-  await page.locator('#cardCvc').fill('123');
+  stage = 'Finding the Stripe Sandbox card form';
+  const cardMethod = page.getByRole('radio', { name: /^card$/i }).or(page.getByRole('button', { name: /^card$/i })).first();
+  if (await cardMethod.isVisible()) await cardMethod.click();
+  const cardSelector = 'input#cardNumber, input[autocomplete="cc-number"], input[name="cardnumber"]';
+  let cardFrame;
+  const limit = Date.now() + 14_000;
+  while (!cardFrame && Date.now() < limit) {
+    for (const frame of page.frames()) {
+      if (frame !== page.mainFrame() && !/^https:\/\/[^/]+\.stripe\.com\//.test(frame.url())) continue;
+      if (await frame.locator(cardSelector).first().isVisible().catch(() => false)) { cardFrame = frame; break; }
+    }
+    if (!cardFrame) await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  if (!cardFrame) {
+    const shell = await page.locator('body').innerText({ timeout: 3000 }).catch(() => '');
+    const indicators = [
+      ['challenge', /captcha|verify (?:you are|that you are) human|checking your browser/i],
+      ['error', /(?:could not|couldn.t|failed to) load|something went wrong|error loading/i],
+      ['expired', /expired|checkout session has ended|no longer available/i],
+      ['trial', /(?:start|free|7-day) trial/i],
+      ['card', /card/i],
+      ['amount', /4\.99/i]
+    ].filter(([, pattern]) => pattern.test(shell)).map(([name]) => name);
+    const inputCount = await page.locator('input:visible').count();
+    console.log('Stripe Checkout page indicators ' + indicators.join(', ') + '. Visible inputs ' + inputCount + '.');
+    check(false, 'A visible Sandbox card field was unavailable.');
+  }
+  stage = 'Filling the synthetic card and customer details';
+  await cardFrame.locator(cardSelector).first().fill('4242424242424242');
+  await cardFrame.locator('input#cardExpiry, input[autocomplete="cc-exp"], input[name="exp-date"]').first().fill('1234');
+  await cardFrame.locator('input#cardCvc, input[autocomplete="cc-csc"], input[name="cvc"]').first().fill('123');
   const email = page.locator('input[type="email"]').first();
   if (await email.isVisible() && !await email.inputValue()) await email.fill(fixture);
-  await page.locator('#billingName').fill('EarnKeep QA Fixture');
+  await page.locator('#billingName, input[autocomplete="cc-name"]').first().fill('EarnKeep QA Fixture');
   const country = page.locator('#billingCountry, #billingAddressCountry').first();
   if (await country.isVisible()) await country.selectOption('US');
-  const line = page.locator('#billingAddressLine1');
-  await line.fill('123 Sandbox Way');
+  stage = 'Filling the synthetic Sandbox billing address';
+  await page.locator('#billingAddressLine1').fill('123 Sandbox Way');
   const manual = page.getByText(/enter address manually/i).first();
   if (await manual.isVisible()) await manual.click();
   await page.locator('#billingAddressCity').fill('Salt Lake City');
