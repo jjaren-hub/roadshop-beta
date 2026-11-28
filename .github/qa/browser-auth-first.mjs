@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';import {spawn} from 'node:child_process'
 const root=process.env.EARNKEEP_TEST_URL||'http://127.0.0.1:18749/',server=process.env.EARNKEEP_TEST_URL?null:spawn('python3',['-m','http.server','18749','--bind','127.0.0.1'],{stdio:'ignore'});let browser;
 try{
 if(server)for(let i=0;i<40;i++){try{if((await fetch(root)).ok)break}catch{}await new Promise(r=>setTimeout(r,100))}
-browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,args:['--no-sandbox']});
+const proxy=process.env.EARNKEEP_TEST_PROXY;
+browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,args:['--no-sandbox'],...(proxy?{proxy:{server:proxy}}:{})});
 const uid='11111111-1111-4111-8111-111111111111',wid='22222222-2222-4222-8222-222222222222',user={id:uid,email:'fixture@example.invalid',aud:'authenticated',role:'authenticated',app_metadata:{provider:'email'},user_metadata:{},identities:[],created_at:'2026-01-01T00:00:00Z'};
 const enc=o=>Buffer.from(JSON.stringify(o)).toString('base64url'),token=enc({alg:'HS256'})+'.'+enc({sub:uid,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated'})+'.fixture',session={access_token:token,refresh_token:'fixture-only',expires_in:3600,token_type:'bearer',user};
 for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase operator','Trucking'],['mechanic','Mechanic','Mobile mechanic','Mechanic'],['mechanic','Mechanic','Repair shop','Mechanic'],['general','General independent contractor','','General contractor'],['other','Other self-employed business','','Other business']]){
@@ -18,7 +19,20 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  else if(url.pathname.endsWith('/roadshop-commercial'))result=data.action==='status'?{enforcement:false,occupations:['truck','mechanic','general','other'],flags:{scanner:false,reports:true,offline:true},isAdmin:false,plans:[{code:'basic',name:'Basic',amount_cents:499},{code:'pro',name:'Pro',amount_cents:999}].map(p=>({...p,interval:'month',capabilities:{workspaces:1,ocr_pages:0,ai_questions:0}})),trialDays:7,trialEligible:true,checkoutEnabled:false,subscription:{status:'none'}}:data.action==='history'?{invoices:[],more:false}:{ok:true};
  else if(url.pathname.endsWith('/workspaces')||url.pathname.endsWith('/roadshop-document-scan')){errors.push('Forbidden financial network request '+url.pathname);status=403;result={message:'Financial data must stay on this device'}}
  await r.fulfill({status,headers,contentType:'application/json',body:JSON.stringify(result)})});
- const page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
+ const page=await ctx.newPage();page.setDefaultTimeout(10000);
+ let offlineFixture=false;
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',msg=>{
+  if(msg.type()==='error'&&!msg.text().startsWith('Failed to load resource:'))errors.push(msg.text());
+ });
+ page.on('response',res=>{
+  if(res.url().startsWith(root)&&res.status()>=400)errors.push('App response '+res.status()+' '+new URL(res.url()).pathname);
+ });
+ page.on('requestfailed',req=>{
+  const reason=req.failure()?.errorText;
+  if(!offlineFixture&&req.url().startsWith(root)&&reason!=='net::ERR_ABORTED')errors.push('App request failed '+reason+' '+new URL(req.url()).pathname);
+ });
+ const localSpaces=()=>page.evaluate(owner=>LocalBooks.list(owner),uid);
  await page.goto(root);await page.getByRole('heading',{name:'Know your numbers. Own your success.'}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('script[src*="cloud/"]').count(),0);await page.getByRole('link',{name:'Get started'}).first().click();await page.getByRole('heading',{name:'Create your EarnKeep account'}).waitFor();await page.locator('#guest').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(16, 22, 23)');await page.evaluate(()=>RoadTheme.set('light'));assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(16, 22, 23)');assert.equal(await page.evaluate(()=>RoadTheme.get()),'light');await page.reload();await page.locator('#guest').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('button[value=signup]')).backgroundColor),'rgb(192, 233, 120)');
  await page.goto(root+'finance.html');await page.waitForURL(url=>/\/account(?:\.html)?$/.test(url.pathname));await page.locator('#guest').waitFor();
  await page.locator('#email').fill(user.email);await page.locator('#password').fill('fictional-password');if(job==='other'){
@@ -41,7 +55,19 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
  }
  if(job!=='other')await page.locator('button[value=login]').click();await page.locator('#local-disclosure').waitFor();await page.locator('#local-disclosure-check').check();await page.locator('#local-disclosure-accept').click();await page.locator('#start-setup').click();
  await page.getByLabel('Occupation',{exact:true}).selectOption(label);if(sub)await page.getByLabel('Type of business',{exact:true}).selectOption(sub);await page.getByLabel('Business name',{exact:true}).fill('Fixture '+trade);
- await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Operating costs',exact:true}).waitFor();if(job==='mechanic')await page.getByLabel('Shop supply charge ($/job)',{exact:true}).fill('12.50');await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('button',{name:job==='mechanic'?'Open ledger':'Open dashboard',exact:true}).click();
+ await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'Recurring bills',exact:true}).waitFor();await page.getByRole('button',{name:'Continue',exact:true}).click();await page.getByRole('heading',{name:'Operating costs',exact:true}).waitFor();if(job==='mechanic')await page.getByLabel('Shop supply charge ($/job)',{exact:true}).fill('12.50');await page.getByRole('button',{name:'Continue',exact:true}).click();
+ const dieselResponse=job==='truck'?page.waitForResponse(r=>r.url()===new URL('data/eia-diesel.json',root).href):null;
+ await page.getByRole('button',{name:job==='mechanic'?'Open ledger':'Open dashboard',exact:true}).click();
+ if(dieselResponse){
+  const response=await dieselResponse;
+  assert.equal(response.status(),200);
+  const observation=await response.json();
+  assert.equal(observation.series,'EMD_EPD2D_PTE_NUS_DPG');
+  const widget=page.locator('[data-card-id=eia-diesel]');
+  await widget.getByText('USD '+observation.price.toFixed(3)+' / gal',{exact:true}).waitFor();
+  await widget.getByText(new RegExp('^Week of '+observation.week)).waitFor();
+  assert.equal(await widget.getByText(/Refresh unavailable/).count(),0);
+ }
  if(job==='mechanic'){await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();await page.getByRole('link',{name:'Dashboard',exact:true}).click();}
  await page.getByRole('heading',{name:'Fixture '+trade,exact:true}).waitFor();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(244, 246, 242)');await page.evaluate(()=>RoadTheme.set('dark'));assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(16, 22, 23)');assert.equal((await localSpaces())[0].books['roadshop-profile-v2'].job,job);assert.equal((await localSpaces())[0].books['roadshop-profile-v2'].complete,true);
  const shortcut=await page.locator('#content .dashboard-nav a[data-tool=finance]').first().evaluate(a=>({height:a.getBoundingClientRect().height,bg:getComputedStyle(a).backgroundColor,fg:getComputedStyle(a).color}));assert(shortcut.height>=38&&shortcut.height<=48);assert.equal(shortcut.bg,'rgb(192, 233, 120)');assert.equal(shortcut.fg,'rgb(21, 32, 12)');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -88,7 +114,8 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
      await page.getByRole('button',{name:'Cancel',exact:true}).click();
      await tabs.getByRole('link',{name:'Ledger',exact:true}).click();
      await page.getByRole('heading',{name:'Profit & loss',exact:true}).waitFor();
-     assert.equal(await tabs.locator('a,button').count(),4);
+     await tabs.waitFor();
+     assert.deepEqual(await tabs.locator('a, button').allTextContents(),['Ledger','Add load','Add Fuel','Add expense']);
      await page.goto(root+'workspace.html?home=1');await page.getByText('All tools & shortcuts',{exact:true}).click();await page.getByRole('link',{name:'Quotes (optional)',exact:true}).click();
    }else await tabs.getByRole('link',{name:'Quotes',exact:true}).click();
    await page.getByRole('heading',{name:'Quotes',exact:true}).waitFor();assert.equal(await page.locator('#detailedOrder').isVisible(),false);
@@ -452,9 +479,9 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
    await page.getByLabel('Category (custom allowed)').fill('Materials');await page.getByLabel('Amount ($)',{exact:true}).fill('12.34');await button('Save confirmed transaction').click();await page.getByRole('heading',{name:/Materials/}).waitFor();
    const manualReceipt=(await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.cents===1234);assert.equal(manualReceipt.length,1);assert.equal((manualReceipt[0].receipts||[]).length,0);
    await page.goto(root+'offline.html');const pass='fictional test vault';
-   await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await page.getByLabel('Repeat passphrase').fill(pass);await button('Enable offline entry').click();await page.getByText('Offline vault ready').waitFor();await ctx.setOffline(true);
+   await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await page.getByLabel('Repeat passphrase').fill(pass);await button('Enable offline entry').click();await page.getByText('Offline vault ready').waitFor();offlineFixture=true;await ctx.setOffline(true);
    await page.getByLabel('Category',{exact:true}).fill('Offline tools');await page.getByLabel('Amount ($)').fill('7.89');await button('Save encrypted pending entry').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await button('Lock vault').click();
-   await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await button('Unlock').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await ctx.setOffline(false);await page.getByText('1 synced; 0 need review').waitFor();
+   await page.getByLabel('Private passphrase (12+ characters)').fill(pass);await button('Unlock').click();await page.getByRole('heading',{name:'Offline tools · $7.89'}).waitFor();await ctx.setOffline(false);offlineFixture=false;await page.getByText('1 synced; 0 need review').waitFor();
    assert.equal((await localSpaces())[0].books['roadshop-ledger-v1'].filter(r=>r.category==='Offline tools').length,1);
  }
  if(sub==='Mobile mechanic'){
