@@ -1,9 +1,17 @@
-const CACHE = 'roadshop-earnkeep-beta-20261128-section7-isolated2';
+const CACHE = 'roadshop-earnkeep-beta-20261128-section7-refresh1';
 const files = ['./cards.js','./earnkeep-banner.webp','./landing.css','./landing.js','./account-entry.js','./ledger.html','./index.html','./backup.html','./backup.js','./core/backup.js','./billing.html','./subscribe.html','./subscribe.css','./subscribe.js','./subscription-preview.html','./subscription-preview.css','./subscription-preview.js','./admin.html','./support.html','./privacy.html','./terms.html','./commercial.js','./cloud/commercial.js','./offline.html','./offline.js','./core/offline-vault.js','./reports.html','./reports.js','./core/retention.js','./theme.js','./insights.html','./insights.js','./core/insights.js','./tax-planning.html','./tax-planning.js','./core/tax-planning.js','./mechanic.html','./mechanic.js','./core/mechanic.js','./core/job-list.js','./trucking.html','./trucking.js','./core/trucking.js','./finance.html','./finance.js','./reconcile.js','./core/reconciliation.js','./core/finance.js','./?ledger','./workspace.html','./workspace.js','./core/planning.js','./account.html','./cloud/account.js','./cloud/config.js','./cloud/client.js','./cloud/storage.js','./cloud/bootstrap.js','./core/accounting.js','./core/occupations.js','./','./app.js','./app.js?v=paid5','./payments.js','./style.css','./quotes.html','./customer.html','./quotes.js','./quotes.js?v=paid5','./quote-update.js','./quote-core.js','./pdf-lib.min.js','./install.js','./app.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(files.map(path => new Request(path, {cache:"reload"})))));
 });
-self.addEventListener('message',event=>{if(event.data?.type==='ACTIVATE_UPDATE')self.skipWaiting()});
+self.addEventListener('message',event=>{
+  if(!['ACTIVATE_UPDATE','SAFE_ACTIVATE_UPDATE'].includes(event.data?.type))return;
+  event.waitUntil((async()=>{
+    const reply=status=>event.ports[0]?.postMessage({status});
+    const windows=(await self.clients.matchAll({type:'window',includeUncontrolled:true})).filter(c=>c.url.startsWith(self.registration.scope));
+    if(!event.source?.id||windows.some(c=>c.id!==event.source.id)){reply('busy');return;}
+    reply('activating');await self.skipWaiting();
+  })());
+});
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => (key.startsWith('roadshop-iphone-')||key.startsWith('roadshop-earnkeep-')||key==='roadshop-business-archive-1'||key==='roadshop-universal-tabs-1') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
