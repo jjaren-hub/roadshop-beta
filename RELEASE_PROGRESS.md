@@ -39,3 +39,11 @@
 - Playwright CDN returned HTTP 403. Installing a temporary Chromium distribution from the npm registry to continue independent browser verification.
 - Production `sw.js` is readable at the pinned commit, with cache identifier `roadshop-earnkeep-domain-release-20261127-6`. The existing beta copy of the production workflow was not found on production `main` at the same path, so inspect production workflow inventory before dispatch.
 - **Exact next action:** Repair the reconciliation fixture and run through the next browser gate. Continue auditing mileage and transaction edge cases while browser setup completes.
+
+## Checkpoint 5 · Accounting defects identified before edits
+
+- QA-01: Earlier fixture steps permanently delete the test supplies and classic-ledger expense. The store correctly contains the remaining rent expense. The reconciliation assertion should check the existing rent and compare the full ledger before and after reconciliation. A local test edit is staged for execution, with the previous match and audit history assertions retained.
+- TRK-01: `payLoad` accepts an existing unassigned ledger row as the matching payment but leaves the row unassigned. A paid load then contributes its miles while its revenue disappears from that truck's report. Reproduce with a fictional unassigned payment, then assign the row to its truck when linking and preserve its ID and amount.
+- TRK-02: Settlement posting classifies escrow lines and reconciles the statement but skips recorded escrow balance checks for releases. This permits a negative truck balance through settlement posting even though the dedicated maintenance flow rejects it. Validate the projected ledger as a whole so same-statement contributions count and combined withdrawals cannot overdraw.
+- The temporary Chromium binary is available. Independent local and published browser runs and the service-worker run are in progress. No beta or production application commit has been published in this review yet.
+- **Exact next action:** Add failing cases for TRK-01 and TRK-02, implement the targeted changes with regression coverage, then finish the browser regression and publish the vetted candidate to beta.
