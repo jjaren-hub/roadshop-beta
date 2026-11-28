@@ -76,3 +76,10 @@
 - TRK-03 reproduced in the new regression and passed after using separate revenue component rounding. All targeted trucking checks passed with 13 new counted assertions. The browser suite passed all 5 occupation flows plus the newly added mileage, settlement, maintenance, IFTA, lease, and flat-rate calculator cases. Service-worker browser tests passed, including update activation, cleanup of the older cache, and offline navigation on the replacement cache.
 - Approval pending the published run on the committed SHA. Production remains at the initial baseline. Application files include no recovery log or new customer-facing support material.
 - **Exact next action:** Fast-forward beta `main` from its pinned head to this candidate, then retrieve the Pages deployment and QA run IDs and verify the actual published bytes and browser results.
+
+## Checkpoint 10 · Beta deployment started
+
+- Beta `main` moved from `ce11637976fd21bce9088de25f1d3ed39c9ae006` to `76318741087120dac93d9333763fa7292920fc9a`. A fresh fetch matched the tested tree byte-for-byte.
+- [Pages deployment 46100767447](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767447) and [beta QA 46100767991](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767991) started on that exact SHA.
+- Post-commit static recheck passed all 11 suites and the EIA parser. The suites report 234 counted assertions with additional checks reported by suite or scenario.
+- **Exact next action:** Wait for both beta runs. Verify all 69 published assets and obtain the actual published browser log. Establish the production rollback baseline using the deployed asset hashes and protected files.
