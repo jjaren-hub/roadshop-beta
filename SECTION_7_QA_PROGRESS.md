@@ -85,3 +85,10 @@
 - Supabase lists only the existing project shared with production. Keep changes isolated to beta repository code and local tests until a separate project is available for Stripe Sandbox verification.
 - Open release gates: server-side beta eligibility, settled paid-through and out-of-order snapshots, checkout and webhook concurrency on isolated infrastructure, real auth and Stripe redirects, physical devices, Stripe settings verification, and approved billing terms.
 - **Next:** Inspect deployed billing code and database definitions, then implement and test an isolated beta candidate.
+
+### Isolated billing candidate implemented
+
+- Candidate source, a migration and a test harness are staged under `.github/billing-beta/` outside the Pages site. Both write endpoints and reservation RPC require server-managed beta eligibility. The candidate refuses Stripe when pointed at the shared project. The browser supports the new API's explicit unsettled state and verified test-clock time.
+- Snapshot processing now orders observations by a database revision and uses settled Stripe subscription invoice lines for paid-through. Terminal canceled records cannot grant access. Account trial flags remain durable, and checkout reservations continue to use database locks and Stripe idempotency. The frontend sends explicit test mode for invoice history.
+- Beta legal draft resolves links to a missing policy by pointing to the actual billing sections and aligns the unsuspended record/export policy and app-consumed Stripe data. Counsel and Stripe account checks remain required.
+- A native PostgreSQL test start was blocked by this executor's socket policy. The candidate is being tested through a local PostgreSQL WASM engine with fictional Stripe HTTP and the actual SQL. Native multi-session database evidence and actual Stripe Sandbox evidence remain distinct checks.
