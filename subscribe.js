@@ -23,6 +23,17 @@
    if(RoadCommercial.paidAccess(sub)){
     if(sub.status==='trialing')say(sub.cancelAtPeriodEnd?'Your free trial is active. It will end without renewal.':'Your free trial is active.');
     else say(sub.cancelAtPeriodEnd||sub.status==='canceled'?'Your subscription is canceled. Your paid access continues through the end of the period.':'Your paid access is active.');
+    if(RoadCommercial.canReactivate(sub)){
+     const end=sub.status==='trialing'?(sub.trialEnd??sub.periodEnd):(sub.paidThrough??sub.periodEnd);
+     node(root,'p','Your access continues until '+new Date(end).toLocaleDateString()+'. Reactivate in Stripe to keep your subscription.');
+     const enabled=RoadCommercial.testEnabled(user,info);
+     const b=button(root,'Reactivate subscription',async()=>{
+      if(busy||!enabled)return;busy=true;b.disabled=true;
+      try{const url=await RoadCommercial.testSession('reactivate',user.id);if(seq===generation)location.assign(url)}
+      catch(e){if(seq===generation)say(e.message||'Reactivation unavailable.')}finally{busy=false;b.disabled=!enabled}
+     });b.disabled=!enabled;
+     node(root,'p','Confirm reactivation in Stripe, then return to Billing to refresh your verified status.');
+    }
     link(root,'Continue to EarnKeep','account.html?continue=1');link(root,'Manage subscription','billing.html');return;
    }
    if(info.promo&&Date.parse(info.promo.until_at)>Date.now())node(root,'p','Promotional access is active until '+new Date(info.promo.until_at).toLocaleDateString()+'.');
