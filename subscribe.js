@@ -22,7 +22,7 @@
    if(returned)node(root,'p',returned==='canceled'?'Checkout was canceled. Your access is based on verified billing status.':'Checkout return received. Only verified server status determines subscription access.');
    if(RoadCommercial.paidAccess(sub)){
     if(sub.status==='trialing')say(sub.cancelAtPeriodEnd?'Your free trial is active. It will end without renewal.':'Your free trial is active.');
-    else say(sub.cancelAtPeriodEnd||sub.status==='canceled'?'Your subscription is canceled. Your paid access continues through the end of the period.':'Your paid access is active.');
+    else say(sub.cancelAtPeriodEnd?'Cancellation is scheduled. Your paid access continues through the end of the period.':'Your paid access is active.');
     if(RoadCommercial.canReactivate(sub)){
      const end=sub.status==='trialing'?(sub.trialEnd??sub.periodEnd):(sub.paidThrough??sub.periodEnd);
      node(root,'p','Your access continues until '+new Date(end).toLocaleDateString()+'. Reactivate in Stripe to keep your subscription.');
@@ -51,7 +51,8 @@
      catch(e){if(seq===generation)say(e.message||'Checkout unavailable.')}finally{busy=false;b.disabled=!enabled}
     });b.disabled=!enabled;
    }
-   if(!eligible)node(root,'p','Your subscription status is '+sub.status+'. Manage it from Billing.');
+   if(['past_due','unpaid'].includes(sub.status))node(root,'p','A subscription payment is outstanding. Open Billing to update your payment method and refresh your status.');
+   else if(!eligible)node(root,'p','Your subscription status is '+sub.status+'. Manage it from Billing.');
    link(root,'Manage billing or refresh a returned checkout','billing.html');
    const recovery=node(root,'section');recovery.className='subscribe-plan';node(recovery,'h3','Your records are still yours');node(recovery,'p','You can access and export records already saved on this device without buying another subscription. Select your existing business to view records, export CSV from Finances or print PDF reports.');
    link(recovery,'Open my existing businesses','account.html?switch=1');link(recovery,'Download complete backup','backup.html');

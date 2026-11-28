@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {chromium} from 'playwright-core';
+import {chromium,devices} from 'playwright-core';
 
 const root = 'https://jjaren-hub.github.io/roadshop-beta/';
 const published = Boolean(process.env.EARNKEEP_TEST_URL);
@@ -41,8 +41,13 @@ async function downloaded(page, action){
 }
 
 try {
-  for(const width of [360,1280]){
-    const context=await browser.newContext({viewport:{width,height:850},serviceWorkers:'block'});
+  const layouts=[
+    ['Android Chrome emulation',devices['Pixel 7']],
+    ['iPhone mobile layout in Chromium',devices['iPhone 13']],
+    ['desktop Chrome',{viewport:{width:1280,height:850}}]
+  ];
+  for(const [layout,options] of layouts){
+    const context=await browser.newContext({...options,serviceWorkers:'block'});
     await publicAssets(context);
     const page=await context.newPage();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -55,7 +60,7 @@ try {
     ]){
       await page.getByLabel('View EarnKeep as').selectOption(state);
       await expectText(page.getByText(copy,{exact:typeof copy==='string'}).first(),state);
-      await assertLayout(page,state+' layout at '+width);
+      await assertLayout(page,state+' layout in '+layout);
     }
     await button(page,'Reset preview').click();
     await expectText(page.getByText('$4.99 / month',{exact:true}),'preview price');
@@ -96,6 +101,7 @@ try {
       calls.push(body);
       if(body.action==='status'&&statusUnavailable){status=503;result={error:'Fixture subscription status unavailable'};}
       else if(body.action==='status')result={enforcement:false,checkoutEnabled,checkoutMode,subscription,trialEligible,trialDays:7,occupations:['truck','mechanic','general','other'],flags:{offline:true,reports:true},plans:[{code:'basic',name:'Basic',interval:'month',amount_cents:499,capabilities:{workspaces:1}}]};
+      else if(body.action==='checkout'&&checkoutResult==='pending'){status=409;result={error:'Complete or allow the existing checkout to expire first'};}
       else if(body.action==='checkout')result=checkoutResult==='test'?{url:'https://checkout.stripe.com/c/pay/cs_test_fixture123',livemode:false}:{url:'https://checkout.stripe.com/c/pay/cs_live_fixture123',livemode:true};
       else if(body.action==='portal')result={url:'https://billing.stripe.com/p/session/test_fixture123',livemode:false};
       else if(body.action==='refresh')result={ok:true};
@@ -106,7 +112,7 @@ try {
   });
   await context.route('https://checkout.stripe.com/**',route=>{
     check(new URL(route.request().url()).pathname,'/c/pay/cs_test_fixture123','only a test checkout URL opened');
-    return route.fulfill({contentType:'text/html',body:'<h1>Intercepted checkout fixture</h1><a href="'+root+'subscribe.html?checkout=canceled">Cancel fixture checkout</a> <a href="'+root+'subscribe.html?checkout=success">Complete fixture checkout</a>'});
+    return route.fulfill({contentType:'text/html',body:'<h1>Intercepted checkout fixture</h1><a href="'+root+'billing.html?checkout=canceled">Cancel fixture checkout</a> <a href="'+root+'billing.html?checkout=returned">Complete fixture checkout</a>'});
   });
   await context.route('https://billing.stripe.com/**',route=>{
     portalVisits++;
@@ -126,7 +132,12 @@ try {
   const awaitDenied=locator=>expectText(locator.getByText(readOnly).first(),'app rejects write');
   const checkoutCalls=()=>calls.filter(x=>x.action==='checkout');
 
+  await go('support.html');
+  const support=page.getByRole('link',{name:'EarnKeepsuport@gmail.com',exact:true});
+  await expectText(support,'signed-out support email');
+  check(await support.getAttribute('href'),'mailto:EarnKeepsuport@gmail.com','support mailto');
   await go('subscribe.html');
+  await expectText(text(/before applicable taxes.*seven-day free trial.*renews automatically/),'public billing disclosures');
   await expectText(page.getByRole('link',{name:'Create account',exact:true}),'unregistered subscribe');
   await page.getByRole('link',{name:'Create account',exact:true}).click();
   await page.locator('#email').fill(user.email);
@@ -166,11 +177,16 @@ try {
   confirm();await press('Start 7-day test trial');
   await expectText(text('Stripe did not return a verified test session.'),'live checkout URL rejected');
   check(page.url(),root+'subscribe.html','live URL did not navigate');
+  checkoutResult='pending';
+  confirm();await press('Start 7-day test trial');
+  await expectText(text('Complete or allow the existing checkout to expire first'),'billing conflict recovery message');
+  check(await button(page,'Start 7-day test trial').isEnabled(),true,'checkout can be retried after a billing error');
   checkoutResult='test';
   confirm();await press('Start 7-day test trial');
   await expectText(page.getByRole('heading',{name:'Intercepted checkout fixture'}));
   await page.getByRole('link',{name:'Cancel fixture checkout'}).click();
-  await expectText(text(/Checkout was canceled/),'canceled checkout return');
+  await expectText(text(/Checkout was canceled/),'server-configured billing cancel return');
+  await expectText(text('Status: No subscription'),'cancel return did not activate subscription');
   check(await page.getByRole('link',{name:'Continue to EarnKeep',exact:true}).count(),0,'checkout cancellation grants no access');
   await go('subscribe.html?checkout=success');
   await expectText(text(/Only verified server status determines subscription access/),'unverified success return');
@@ -179,6 +195,9 @@ try {
   await expectText(page.getByRole('heading',{name:'Intercepted checkout fixture'}));
   subscription={status:'trialing',trialEnd:date(7),periodEnd:date(7),hasCustomer:true};
   await page.getByRole('link',{name:'Complete fixture checkout'}).click();
+  await expectText(text(/Returned from checkout/),'server-configured billing success return');
+  await expectText(text('Status: trialing'),'billing shows verified trial');
+  await go('subscribe.html');
   await expectText(text('Your free trial is active.'),'verified trial activation');
   check(checkoutCalls().every(x=>x.mode==='test'&&x.plan==='basic'),true,'all checkout calls request test mode and exact plan');
   await page.getByRole('link',{name:'Continue to EarnKeep',exact:true}).click();
@@ -224,7 +243,8 @@ try {
     ['trial active',{status:'trialing',trialEnd:date(7)},true],
     ['trial expired',{status:'trialing',trialEnd:date(-1),periodEnd:date(7)},false],
     ['paid active',{status:'active',periodEnd:date(20),hasCustomer:true},true],
-    ['canceled paid-through',{status:'canceled',paidThrough:date(5),hasCustomer:true},true],
+    ['scheduled cancellation',{status:'active',cancelAtPeriodEnd:true,periodEnd:date(5),hasCustomer:true},true],
+    ['terminal canceled with future dates',{status:'canceled',cancelAtPeriodEnd:true,periodEnd:date(5),paidThrough:date(5),hasCustomer:true},false],
     ['subscription expired',{status:'canceled',paidThrough:date(-1),hasCustomer:true},false],
     ['failed renewal',{status:'past_due',periodEnd:date(30),paidThrough:date(-1),hasCustomer:true},false]
   ]){
@@ -237,21 +257,27 @@ try {
   }
 
   await go('subscribe.html');
-  await expectText(text(/Manage it from Billing/),'failed renewal route');
+  await expectText(text(/payment is outstanding.*Open Billing/),'failed renewal route');
   check(await button(page,'Start 7-day test trial').count(),0,'expired customer has no repeat trial');
   await go('billing.html');
   await expectText(text(/Status: past_due/),'billing shows failed renewal');
+  await expectText(text(/Update your payment method in Stripe.*Existing records, exports and backups/),'failed renewal recovery guidance');
   await press('Manage payment method / cancellation / billing portal');
   await expectText(page.getByRole('heading',{name:'Intercepted billing portal'}));
   subscription={status:'active',cancelAtPeriodEnd:true,periodEnd:date(4),hasCustomer:true};
   await page.getByRole('link',{name:'Return to billing'}).click();
   await expectText(text(/Cancellation scheduled for end of current period/),'canceled but paid-through');
+  await expectText(button(page,'Reactivate subscription'),'scheduled cancellation can be reactivated');
+  await press('Reactivate subscription');
+  await expectText(page.getByRole('heading',{name:'Intercepted billing portal'}),'reactivation uses the billing portal');
+  await page.getByRole('link',{name:'Return to billing'}).click();
+  await expectText(text(/Cancellation scheduled/),'return does not grant reactivation without verified status');
   subscription={status:'active',periodEnd:date(30),hasCustomer:true};
   await press('Refresh verified billing status');
   await expectText(text('Status: active'),'renewal refresh uses server status');
   await go('subscribe.html');
   await expectText(text('Your paid access is active.'),'renewed access returns');
-  check(portalVisits,1,'only the fake test portal was visited');
+  check(portalVisits,2,'only the fake test portal was visited');
 
   subscription={status:'past_due',paidThrough:date(-1),hasCustomer:true};
   await go('finance.html?tab=ledger');
