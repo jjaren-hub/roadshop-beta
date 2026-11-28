@@ -24,3 +24,10 @@
 - Access: Public beta checkout works. The production git remote requires authentication unavailable to the terminal. GitHub connector reads both repositories and has written the beta recovery branch. CLI access to private production is still to be resolved or replaced through the connector.
 - Files modified: recovery log only. Log initialization commit `a7a56cbd58410cd6b53938c04a75e4550e165e1e`. No application defects confirmed at this checkpoint.
 - **Exact next action:** Run published beta bytes with `EARNKEEP_TEST_URL=https://jjaren-hub.github.io/roadshop-beta/`, run browser and service-worker tests, inspect trucking logic and open findings, and obtain Actions run links.
+
+## Checkpoint 3 · Published baseline identity and CI failure
+
+- The beta byte verifier passed against `ce11637976fd21bce9088de25f1d3ed39c9ae006` and matched 68 published assets. The matching [Pages run 46099126915](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46099126915) succeeded.
+- The same commit's [beta QA run 46099127156](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46099127156) failed. The stage and reason are under investigation. Production remains gated.
+- Local Playwright package installed. The three initial browser invocations exited before loading a page because the system Chromium wrapper points to a missing binary. Started installation of the pinned Playwright browser. No browser assertions credited.
+- **Exact next action:** Read the failed job steps and logs. Run the pinned browser with the replacement binary, reproduce any application failures with fictional fixtures and record them before editing.
