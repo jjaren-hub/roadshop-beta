@@ -199,3 +199,5 @@
 - **Next:** Provision a new fictional beta user with no Stripe customer or subscription. Open two independent authenticated sessions on that account. Pair the browser results with fixture-only database counts and Stripe Sandbox objects, then verify a real previously unseen older webhook using dashboard evidence.
 
 - After the first dashboard handoff, the Create a new user dialog remained open. Beta SQL still returned four users and zero matches for the intended fixture, with zero open reservations and 37 processed events. Fixture creation is still pending and no checkout or webhook test was attempted.
+
+- Owner completed fictional user creation through the beta Supabase dashboard. Readback confirmed the new user is email-confirmed and had no billing row. A guarded enrollment updated exactly that account at 16:31:54 UTC creation timestamp to set the beta cohort flag. The previous active subscription and all other accounts were excluded. Next verify two independent authenticated sessions and launch paired test checkout requests.
