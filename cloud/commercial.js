@@ -7,11 +7,12 @@ async function call(action,extra={}){if(!window.cloudClient)throw Error('Sign in
 async function load(){let timer;try{const result=await Promise.race([call('status'),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Billing status check timed out')),4500)})]);cached=result;return result}finally{clearTimeout(timer)}}
 function paidAccess(subscription, now=Date.now()){
  if(!subscription)return false;
- const {status,periodEnd,trialEnd,paidThrough,cancelAtPeriodEnd}=subscription;
+ const {status,periodEnd,trialEnd,paidThrough}=subscription;
+ // Stripe keeps scheduled cancellations active/trialing until they actually end.
+ // A terminal canceled status is authoritative, even with a future periodEnd (test clocks).
  if(status==='trialing')return Date.parse(trialEnd??periodEnd)>now;
  if(status==='active')return Date.parse(paidThrough??periodEnd)>now;
- if(status==='canceled'&&cancelAtPeriodEnd===true)return Date.parse(paidThrough??periodEnd)>now;
- return ['canceled','past_due','unpaid'].includes(status)&&Date.parse(paidThrough)>now;
+ return ['past_due','unpaid'].includes(status)&&Date.parse(paidThrough)>now;
 }
 function access(s){return !s?.enforcement||paidAccess(s.subscription)||Date.parse(s.promo?.until_at)>Date.now()}
 async function canWrite(user){
