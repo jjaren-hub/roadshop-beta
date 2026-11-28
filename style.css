@@ -309,3 +309,5 @@ html #truck-view .fleet-edit:hover{background:var(--ek-nav-hover)}
 html #truck-view .fleet-row-action{font-size:12px;font-weight:600;flex:0 0 auto;color:inherit}
 
 html .perdiem-grid>.perdiem-home{background:#405466;border-color:#657b8f;color:#fff}
+
+html #truck-view label[hidden]{display:none!important}
