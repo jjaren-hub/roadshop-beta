@@ -1,0 +1,29 @@
+name: Section 7 real Stripe Sandbox trial
+on:
+  push:
+    branches: [qa/section-7]
+    paths:
+      - ".github/workflows/section-7-sandbox-trial.yml"
+      - ".github/qa-live/sandbox-trial.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: earnkeep-section-7-sandbox-fixture
+  cancel-in-progress: false
+jobs:
+  trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned Chromium client
+        run: npm install --no-save --ignore-scripts playwright-core@1.65.1
+      - name: Complete the verified fixture checkout in Stripe Sandbox
+        env:
+          EARNKEEP_QA_FIXTURE_PASSWORD: ${{ secrets.EARNKEEP_QA_FIXTURE_PASSWORD }}
+        run: |
+          export CHROMIUM_PATH="$(command -v google-chrome)"
+          node .github/qa-live/sandbox-trial.mjs
