@@ -472,7 +472,7 @@ for(const [job,label,sub,trade] of [['truck','Truck driver','Lease-purchase oper
 
    for(const name of ['Basic · $4.99 / month','Pro · $9.99 / month'])await page.getByRole('heading',{name,exact:true}).waitFor();
    const trials=button('Start 7-day trial (test mode)');assert.equal(await trials.count(),2);assert(await trials.first().isDisabled());assert(await trials.last().isDisabled());
-   for(let i=0;i<2;i++){await button('Load test invoice history').click();await page.getByText('No invoices yet.',{exact:true}).waitFor();}
+   assert(await button('Load test invoice history').isDisabled(),'ordinary beta account must not request Stripe invoice history');
    await page.goto(root+'insights.html');await page.getByRole('heading',{name:'Business insights',exact:true}).waitFor();await button('Calculate answer').waitFor();assert.equal(await page.getByRole('button',{name:'Receipt scanner',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Settlement scanner',exact:true}).count(),0);
    await page.goto(root+'finance.html?tab=ledger');await button('Add transaction').click();
    assert.equal(await page.locator('input[type=file]').count(),0);

@@ -197,6 +197,9 @@ try {
   await page.getByRole('link',{name:'Complete fixture checkout'}).click();
   await expectText(text(/Returned from checkout/),'server-configured billing success return');
   await expectText(text('Status: trialing'),'billing shows verified trial');
+  for(let i=0;i<2;i++){await press('Load test invoice history');await expectText(text('No invoices yet.'),'enrolled beta account can load invoice history');}
+  check(calls.filter(x=>x.action==='history').length,2,'invoice history repeat requests');
+  check(calls.filter(x=>x.action==='history').every(x=>x.mode==='test'),true,'invoice history requires test mode');
   await go('subscribe.html');
   await expectText(text('Your free trial is active.'),'verified trial activation');
   check(checkoutCalls().every(x=>x.mode==='test'&&x.plan==='basic'),true,'all checkout calls request test mode and exact plan');
