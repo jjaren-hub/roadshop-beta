@@ -21,9 +21,9 @@ jobs:
           node-version: "24"
       - name: Install pinned Chromium client
         run: npm install --no-save --ignore-scripts playwright-core@1.65.1
-      - name: Complete the verified fixture checkout in Stripe Sandbox
+      - name: Verify the activated fixture without submitting checkout
         env:
           EARNKEEP_QA_FIXTURE_PASSWORD: ${{ secrets.EARNKEEP_QA_FIXTURE_PASSWORD }}
         run: |
           export CHROMIUM_PATH="$(command -v google-chrome)"
-          node .github/qa-live/sandbox-trial.mjs
+          node .github/qa-live/sandbox-trial.mjs --verify-activated
