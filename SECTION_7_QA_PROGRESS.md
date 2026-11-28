@@ -284,3 +284,31 @@ Retain existing automated offline/export evidence but do not substitute it for t
 ## Android CSV export acceptance evidence · 2026-11-28
 
 - Owner supplied `earnkeep-ledger-2026-11.csv` immediately after beta publication. Inspected actual 281-byte CSV: 20 headers, one transaction, all rows have 20 fields, November 2026 reporting filename and matching transaction date. Direct ledger export download/readability check passes with supplied artifact evidence. No raw transaction identifiers or financial details copied into the repository. Android financial records/export category now 6/6; the separate update regression still requires refresh/restart and record-retention verification across releases. Do not infer offline or expired-account export acceptance from this file alone. Production untouched.
+
+## Physical-device acceptance completion · 2026-11-28
+
+Owner explicitly submitted the following completed checks as **owner-attested passes**. Preserve all prior evidence; no independent device observations, release IDs for both update tests, or exact OS/browser versions were supplied with this submission.
+
+### Android — remaining seven checks passed
+
+- Automatic updates across two releases without losing records (closes reopened device update regression by owner attestation).
+- Enable offline vault.
+- Open installed app in airplane mode.
+- Unlock offline vault.
+- Save an offline expense.
+- Reconnect and synchronize without duplicate entries.
+- Confirm existing records remain intact.
+
+Android physical-device checklist now **38/38 passed** (owner attestation plus prior CSV artifact evidence).
+
+### iPhone — all seven submitted acceptance categories passed
+
+- Safari authentication.
+- Install to home screen.
+- Mobile interface and navigation.
+- Automatic application updates.
+- Stripe checkout and billing portal.
+- Financial records and exports.
+- Offline vault and recovery.
+
+iPhone acceptance **7/7 submitted categories passed** by owner attestation; do not infer individual unreported subtest evidence. Physical-device acceptance is complete at the submitted checklist level. Remaining Section 7 work: Stripe public support email and receipt/portal contact, Automatic Tax configuration/registrations, outstanding direct API security and production authentication evidence discrepancies, automated release cache versioning, latest-build regression and hosted asset verification, and final technical review/sign-off. Retain prior owner-accepted failed-renewal lifecycle and legal approval with documented evidence limitations. No production changes, Stripe changes, enforcement activation, or Section 8 work.
