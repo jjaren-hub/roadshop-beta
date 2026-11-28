@@ -20,7 +20,7 @@
    const info=await RoadCommercial.load();if(seq!==generation)return;
    const sub=info.subscription;if(!sub||typeof sub.status!=='string'||!Array.isArray(info.plans))throw Error('Subscription information is unavailable.');
    const returned=new URLSearchParams(location.search).get('checkout');if(returned)node(root,'p','Checkout return received. Only verified server status determines subscription access.');
-   const active=['active','trialing'].includes(sub.status);
+   const active=['active','trialing'].includes(sub.status)&&Date.parse(sub.periodEnd)>Date.now();
    if(active){say('Your subscription status is '+sub.status+'.');link(root,'Continue to EarnKeep','account.html?continue=1');link(root,'Manage subscription','billing.html');return}
    if(info.promo&&Date.parse(info.promo.until_at)>Date.now())node(root,'p','Promotional access is active until '+new Date(info.promo.until_at).toLocaleDateString()+'.');
    say(info.checkoutEnabled?'Choose an available monthly plan. Checkout is in test mode.':'Test checkout is not configured. You can still continue to your beta account.');
@@ -38,7 +38,10 @@
     });b.disabled=!info.checkoutEnabled||!eligible;
    }
    if(!eligible)node(root,'p','Your subscription status is '+sub.status+'. Manage it from Billing.');
-   link(root,'Manage billing or refresh a returned checkout','billing.html');link(root,'Continue to my account','account.html?continue=1');
+   link(root,'Manage billing or refresh a returned checkout','billing.html');
+   const recovery=node(root,'section');recovery.className='subscribe-plan';node(recovery,'h3','Your records are still yours');node(recovery,'p','You can access and export records already saved on this device without buying another subscription. Select your existing business to view records, export CSV from Finances or print PDF reports.');
+   link(recovery,'Open my existing businesses','account.html?switch=1');link(recovery,'Download complete backup','backup.html');
+   link(root,'Continue to my account','account.html?continue=1');
   }catch(e){if(seq===generation)retry(e.message||'Subscription status could not be loaded.')}
  }
  if(window.cloudClient)cloudClient.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'||event==='SIGNED_IN')setTimeout(()=>load(),0)});
