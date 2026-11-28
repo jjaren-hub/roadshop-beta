@@ -47,3 +47,10 @@
 - TRK-02: Settlement posting classifies escrow lines and reconciles the statement but skips recorded escrow balance checks for releases. This permits a negative truck balance through settlement posting even though the dedicated maintenance flow rejects it. Validate the projected ledger as a whole so same-statement contributions count and combined withdrawals cannot overdraw.
 - The temporary Chromium binary is available. Independent local and published browser runs and the service-worker run are in progress. No beta or production application commit has been published in this review yet.
 - **Exact next action:** Add failing cases for TRK-01 and TRK-02, implement the targeted changes with regression coverage, then finish the browser regression and publish the vetted candidate to beta.
+
+## Checkpoint 6 · Targeted fixes and second browser fixture failure
+
+- Local changes in `core/trucking.js`, `sw.js`, `.github/qa/trucking.mjs`, and `.github/qa/browser-auth-first.mjs`. TRK-01 failed in a new local regression before the fix. The targeted trucking suite now passes, including 4 new load-assignment checks and 6 new settlement escrow checks. The cache key changed to refresh the shipped trucking logic.
+- QA-01 passed in a local Chromium run, which advanced to a second fixture defect, QA-02. The per diem calendar and legacy travel form share a deductible-percentage label. The browser selector now identifies the calendar's numeric field specifically and retains all four calendar state checks.
+- Local service-worker browser suite passed. Independent published browser launch reached a network error before the first page; direct Node asset verification had already passed. Use the GitHub published-browser runner and try the workspace proxy explicitly for independent reproduction.
+- **Exact next action:** Confirm browser results after QA-02, review compatibility for previously linked unassigned payments, commit the build and start a fresh published beta gate.
