@@ -34,3 +34,10 @@
 - Regression coverage includes exact invoice PDF, draft quote create/edit rejection, invoice issue/payment rejection, maintenance/escrow restrictions, direct URL restrictions, offline fail-closed writes, and read-only backup download/verification. The browser fixture confirmed workspace records were byte-equivalent after rejected writes. Ordinary beta access remained writable.
 - Started a published beta Chromium PWA session before promotion. It is running the previous cache and awaiting the new build.
 - **Next action:** Fast-forward beta `main` from its pinned head, then monitor Pages deployment and the GitHub-hosted beta quality gate. Compare deployed assets and verify the installed session update.
+
+## Published beta verification in progress
+
+- Beta `main` fast-forwarded to `9a76a4e1bd51f86d8cbd4bd9195aca11f7c19f77`. [Pages run 46141810742](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46141810742) and [quality gate 46141810898](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46141810898) started on that commit.
+- A real browser on the published beta installed the previous service worker, received and activated the new worker, discarded the prior cache, opened the subscription preview offline and reconnected successfully.
+- Additional 390px Chromium run of the exact working-tree app passed 109 actual-application fixture assertions, including seven extra ledger layout checks (149 including the repeated 40 preview assertions). No test data was erased by the subscription checks.
+- **Next action:** Verify all expected published bytes and the hosted mobile/desktop workflow results. Recheck the real Google initiation on the new deployment, then finalize the report with Stripe sandbox blockers.
