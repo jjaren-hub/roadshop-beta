@@ -163,3 +163,12 @@
 - Production `main` advanced from `210fa5fecc9f278a4ff9044037e887e9ca052c41` to `d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056` with an expected-head guard. Source update succeeded. Live deployment and verification are in progress.
 - The initial pre-release PWA observation timed out while production was deliberately held pending preview testing. Re-armed an isolated browser before publishing and confirmed the previous live cache was installed. The newly armed session will verify update and reconnection.
 - **Exact next action:** Obtain the production Cloudflare check and confirm `earnkeep.app` serves the exact new cache and manifest. Then complete the hosted live workflow and continuity tests. If a critical live gate fails, revert with the prior tree and verify rollback hashes.
+
+## Checkpoint 22 · Live deployment, assets, OAuth initiation and update verified
+
+- Cloudflare production deployment `da15821c-c3c4-4840-b35e-892a9a5ba80f` succeeded for `d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056`. [Deployment check 140848977927](https://github.com/jjaren-hub/RoadShop/runs/140848977927).
+- Live `earnkeep.app` matched all 71 public assets and 20 internal-path exclusion checks. Production HTTPS, CSP, anti-framing, no-sniff, referrer policy and canonical account query handling passed. The earlier verification script's HTTPS stage matched 68 hashes. Its final Node HTTP request failed through the workspace proxy. An independent curl request confirmed actual HTTP 301 to the HTTPS URL with the query preserved.
+- Real Google initiation passed on the live domain. The actual auth service accepted the production canonical callback and PKCE request and redirected to Google. The response exchange and login-loop assertions use fictional intercepted auth.
+- Cross-version local data continuity passed. The isolated fictional workspace and its pre-release $42.17 ledger entry survived the release and refresh. A real browser with the previous live service worker installed received the new cache, removed the prior cache, loaded offline and reconnected.
+- [Hosted live browser QA 46102877188](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46102877188), job `140849059077`, is in progress. The workflow target change was committed as `dcf03905b84a7085d9f5e1d296fb28cfb07d8ce7`.
+- **Exact next action:** Confirm the hosted live browser result and the final beta/production heads. Commit the final release report. If a critical live browser gate fails, apply the verified rollback procedure.
