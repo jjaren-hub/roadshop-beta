@@ -262,3 +262,9 @@ Owner submitted the Android Section 7 checklist for beta: **31/38 passed, 7 pend
 - Confirm existing records remain intact after offline/reconnect.
 
 Retain existing automated offline/export evidence but do not substitute it for these physical-device tests. Owner's expiration behavior acceptance does not independently establish a new real v5 failed-renewal cutoff. Android remains partially accepted until seven pending items are resolved; iPhone, remaining Stripe configuration and final Section 7 review remain separate. No code, production, billing configuration or Section 8 changes.
+
+## Android update regression report · 2026-11-28
+
+- Owner reports that new releases do not reach the installed Android app. Reopen the previously owner-attested 'App update installs without losing records' check as **failed by owner report / pending reproduction and retest**. Preserve the historical pass and all unrelated results. No evidence yet identifying the exact installed or expected release.
+- Source inspection: `sw.js` serves a release-specific cache; `quote-update.js` calls `registration.update()` on page load and exposes a waiting-worker activation button only when a controller exists. Update-check failures are silently ignored. Potential failure modes include unchanged release cache version, missed waiting-worker notification, and lack of foreground/resume checks. These are hypotheses, not confirmed device root cause.
+- Retest on installed Android PWA across two published beta releases: foreground/resume update detection, visible update action, safe draft handling, activation and reload, new build identity, local records and offline vault integrity, no forced sign-out or site-data clearing. Record both release IDs and device evidence. No production changes, global enforcement changes, or Section 8 work.
