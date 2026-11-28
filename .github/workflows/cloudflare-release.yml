@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      EARNKEEP_TEST_URL: https://a963554e.roadshop.pages.dev/
+      EARNKEEP_TEST_URL: https://earnkeep.app/
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +36,13 @@ jobs:
           import assert from 'node:assert/strict';
           const root=new URL(process.env.EARNKEEP_TEST_URL);
           assert(['a963554e.roadshop.pages.dev','earnkeep.app'].includes(root.hostname));
+          let deployed=false;
+          for(let attempt=0;attempt<24&&!deployed;attempt++){
+            const sw=await fetch(new URL('sw.js?qa='+process.env.GITHUB_RUN_ID,root),{cache:'no-store',signal:AbortSignal.timeout(10000)}).catch(()=>null);
+            deployed=Boolean(sw?.ok&&(await sw.text()).includes('roadshop-earnkeep-production-20261127-7'));
+            if(!deployed)await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          assert(deployed,'Expected production service worker was not served');
           const config=await fetch(new URL('cloud/config.js',root),{signal:AbortSignal.timeout(15000)});
           assert(config.ok);
           const hostname=(await config.text()).match(/https:\/\/([a-z0-9]+\.supabase\.co)/)?.[1];
