@@ -8,6 +8,9 @@
   const redirect = new URL(location.origin==='https://earnkeep.app'?'account':'account.html',location.href).href;
   const query=new URLSearchParams(location.search);
   const recoveryCallback=query.get('flow')==='recovery';
+  const subscriptionKey='earnkeep-subscribe-intent';
+  try{if(query.has('continue')||recoveryCallback||query.has('switch'))sessionStorage.removeItem(subscriptionKey);else if(query.has('subscribe')||query.has('signup'))sessionStorage.setItem(subscriptionKey,'1')}catch{}
+  function subscriptionIntent(){try{return sessionStorage.getItem(subscriptionKey)==='1'}catch{return query.has('subscribe')}}
   const switchMode=query.has('switch');
   let creatingFirst=null;
   const auth = api.auth;
@@ -70,6 +73,7 @@
     $('businesses').replaceChildren();$('archived-businesses').replaceChildren();$('archive-section').hidden=true;
     $('start-setup').hidden=true;$('create').hidden=true;$('local-disclosure').hidden=true;
     if (!user){sessionStorage.removeItem(selection);if($('notice').textContent==='Checking your sign-in…')say('');return;}
+    if(!recoveryCallback&&!switchMode&&navigator.onLine!==false&&subscriptionIntent()){try{sessionStorage.removeItem(subscriptionKey)}catch{}location.replace('subscribe.html');return;}
     $('account-title').textContent=recoveryCallback?'Reset your password':'Your account';
     if($('notice').textContent==='Checking your sign-in…')say('');
     if(recoveryCallback)$('change').closest('details').open=true;
@@ -115,6 +119,7 @@
   $('credentials').onsubmit=run(async e=>{
     const credentials={email:$('email').value.trim(),password:$('password').value};
     if(e.submitter?.value==='signup'){
+      try{sessionStorage.setItem(subscriptionKey,'1')}catch{}
       const result=check(await auth.signUp({...credentials,options:{emailRedirectTo:redirect}}));
       if(result.session)await display(result.session);
       else say('Check your email for the verification link.'); 
