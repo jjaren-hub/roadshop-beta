@@ -157,3 +157,9 @@
 - The [GitHub-hosted Cloudflare preview verification 46102583017](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46102583017) passed, including the full published browser suite. [Job 140848129348](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46102583017/job/140848129348). This confirms the earlier intermittent workspace transport timeouts were absent from the independent published test.
 - Production candidate: `d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056`, candidate tree `38b5d5a16a5921bb119bacd6dd1a1afb20fb2879`. Previous verified production: `210fa5fecc9f278a4ff9044037e887e9ca052c41`, rollback deployment `c058838b-0fd9-421f-8674-919bf804564a`.
 - **Exact next action:** Fast-forward RoadShop `main` to the exact candidate with the previous-source SHA as an expected-head guard. Confirm the live Cloudflare deployment and run hosted live browser QA, public manifest, OAuth initiation, existing-data continuity and installed-cache verification.
+
+## Checkpoint 21 · Production source advanced
+
+- Production `main` advanced from `210fa5fecc9f278a4ff9044037e887e9ca052c41` to `d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056` with an expected-head guard. Source update succeeded. Live deployment and verification are in progress.
+- The initial pre-release PWA observation timed out while production was deliberately held pending preview testing. Re-armed an isolated browser before publishing and confirmed the previous live cache was installed. The newly armed session will verify update and reconnection.
+- **Exact next action:** Obtain the production Cloudflare check and confirm `earnkeep.app` serves the exact new cache and manifest. Then complete the hosted live workflow and continuity tests. If a critical live gate fails, revert with the prior tree and verify rollback hashes.
