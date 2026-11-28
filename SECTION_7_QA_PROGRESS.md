@@ -92,3 +92,9 @@
 - Snapshot processing now orders observations by a database revision and uses settled Stripe subscription invoice lines for paid-through. Terminal canceled records cannot grant access. Account trial flags remain durable, and checkout reservations continue to use database locks and Stripe idempotency. The frontend sends explicit test mode for invoice history.
 - Beta legal draft resolves links to a missing policy by pointing to the actual billing sections and aligns the unsuspended record/export policy and app-consumed Stripe data. Counsel and Stripe account checks remain required.
 - A native PostgreSQL test start was blocked by this executor's socket policy. The candidate is being tested through a local PostgreSQL WASM engine with fictional Stripe HTTP and the actual SQL. Native multi-session database evidence and actual Stripe Sandbox evidence remain distinct checks.
+
+### Candidate committed for validation
+
+- [`f87cdd56d09f90674eb016c5c6352ee7448aae46`](https://github.com/jjaren-hub/roadshop-beta/commit/f87cdd56d09f90674eb016c5c6352ee7448aae46) contains the isolated candidate, its SQL tests and the branch-only native PostgreSQL workflow. Both the verified app history and the QA log history are retained. Beta main stays on `8cfe098`; the candidate is available on `qa/section-7` for isolated deployment only.
+- 51 new assertions passed locally on PostgreSQL WASM with fictional Stripe HTTP. Covered database RPC grants, shared-project denial, server-verified beta opt-in, checkout reservation and Stripe idempotency with overlapping requests, trial reuse, excluded invoice line types, paginated settlement, duplicate delivery, delayed events, exact expiry, and links to inline billing Terms.
+- Prior passing QA groups were not rerun. Native PostgreSQL and separate Stripe Sandbox acceptance remain tracked independently.
