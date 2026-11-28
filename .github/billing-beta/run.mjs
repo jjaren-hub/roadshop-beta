@@ -16,7 +16,7 @@ const owner = '10000000-0000-4000-8000-000000000001';
 const ordinary = '10000000-0000-4000-8000-000000000002';
 const customer = 'cus_Fixture';
 const app = 'https://jjaren-hub.github.io/roadshop-beta/';
-const project = 'abcdefghijklmnopqrst';
+const project = 'rwwaejqsgtrmpzwcrfpb'; // all HTTP is intercepted; no real service requests
 const base = 'https://' + project + '.supabase.co';
 const signingSecret = 'whsec_fixture_only';
 const auth = {
@@ -158,7 +158,7 @@ try {
     stripeCalls.push(url.pathname);
     const key = options.headers['Idempotency-Key'];
     if (url.pathname === '/v1/prices/price_fixture') {
-      return Response.json({ active: true, currency: 'usd', unit_amount: 499, recurring: { interval: 'month', interval_count: 1 } });
+      return Response.json({ livemode: false, active: true, currency: 'usd', unit_amount: 499, recurring: { interval: 'month', interval_count: 1 } });
     }
     if (url.pathname === '/v1/customers') {
       customerKeys.add(key);
@@ -184,11 +184,13 @@ try {
     throw Error('Unexpected provider fixture route ' + url.pathname);
   };
 
-  // Even with the test flag set the candidate stays disabled on the shared project.
-  env.ROADSHOP_BILLING_BETA_PROJECT_REF = 'rwwaejqsgtrmpzwcrfpb';
-  env.SUPABASE_URL = 'https://rwwaejqsgtrmpzwcrfpb.supabase.co';
+  // Dedicated project allowlist cannot be overridden to point at production.
+  env.ROADSHOP_BILLING_BETA_PROJECT_REF = 'rkxfwkwxdxudzcbufcox';
+  env.SUPABASE_URL = 'https://rkxfwkwxdxudzcbufcox.supabase.co';
   const disabled = await import('./shared.ts?project-guard');
-  equal(disabled.testEnabled(), false, 'shared-project hard denial');
+  equal(disabled.testEnabled(), false, 'production-project hard denial');
+  env.SUPABASE_URL = base;
+  equal((await import('./shared.ts?mismatched-project-guard')).testEnabled(), false, 'mismatched configured project denied');
   env.ROADSHOP_BILLING_BETA_PROJECT_REF = project;
   env.SUPABASE_URL = base;
   await import('./roadshop-commercial/index.ts');
@@ -217,6 +219,11 @@ try {
   }
   equal((await call('invalid', 'checkout', { mode: 'test', plan: 'basic' }))[0], 401, 'valid account required');
   equal((await call('owner', 'checkout', { mode: 'live', plan: 'basic' }))[0], 503, 'billing test mode required');
+  equal((await call('ordinary','adminOverview'))[0],403,'non-admin privileged API denied');
+  equal((await call('invalid','status'))[0],401,'unauthenticated status denied');
+  equal((await commercial(new Request(base,{method:'OPTIONS',headers:{Origin:'https://earnkeep.app'}}))).status,403,'production origin denied by beta');
+  equal((await commercial(new Request(base,{method:'OPTIONS',headers:{Origin:new URL(app).origin}}))).status,204,'beta CORS preflight allowed');
+  equal((await webhook(new Request(base,{method:'POST',body:'{}'}))).status,400,'unsigned webhook denied');
   equal(stripeCalls, [], 'ineligible requests never contact Stripe');
 
   const checkouts = await Promise.all([1, 2].map(() => call('owner', 'checkout', { mode: 'test', plan: 'basic' })));
@@ -225,6 +232,10 @@ try {
   equal(checkoutSessions.size, 1, 'parallel requests share an actual DB reservation and Stripe fixture idempotency key');
   equal(customerKeys.size, 1, 'parallel checkout customer creation is idempotent');
   equal(new URLSearchParams([...checkoutSessions.values()][0]).get('subscription_data[trial_period_days]'), '7', 'eligible account gets one seven-day trial');
+  const checkoutParams=new URLSearchParams([...checkoutSessions.values()][0]);
+  equal(checkoutParams.get('automatic_tax[enabled]'),'true','automatic tax requested');
+  equal(checkoutParams.get('customer_update[address]'),'auto','billing address updated for tax');
+  equal(checkoutParams.get('billing_address_collection'),'required','checkout collects tax location');
 
   const line = (start, end, extra = {}) => ({
     amount: 499, quantity: 1,

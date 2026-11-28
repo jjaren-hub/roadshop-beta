@@ -4,8 +4,8 @@ This candidate starts from the two deployed version 4 Edge Functions. The scope 
 
 ## Isolated setup
 
-1. Use a separate Supabase project with the billing schema, empty billing data, and fictional users. Run `01-billing.sql` only in that project. Keep global enforcement disabled.
-2. Set `ROADSHOP_BILLING_BETA_PROJECT_REF` to the isolated project ref. Billing requires that ref to match `SUPABASE_URL` and rejects the shared project. Set `ROADSHOP_APP_URL` to the isolated beta frontend origin and path. Configure the frontend build with this isolated project's public Supabase URL and publishable key.
+1. Use the now-dedicated beta project `rwwaejqsgtrmpzwcrfpb` with existing fictional users and Sandbox history. Run `01-billing.sql` only there, after preflight checks. Keep global enforcement disabled.
+2. Billing hard-allowlists only `rwwaejqsgtrmpzwcrfpb` and fixes the return URL to the beta Pages path. If `ROADSHOP_BILLING_BETA_PROJECT_REF` is supplied, it must match that project; the production ref is rejected even if configured. The existing beta frontend already points to the dedicated beta project.
 3. Deploy both Edge Functions from the directories here with the shared module. Keep JWT verification enabled for commercial and disabled for the webhook. Supply Stripe Sandbox keys and the webhook signing secret in the isolated project's secrets. Set `ROADSHOP_STRIPE_TEST_ENABLED` for that project. Use a Sandbox $4.99 monthly Basic price and the matching checkout/portal settings.
 4. Enroll designated accounts with server-managed `earnkeep_subscription_beta` app metadata. Use separate fixtures for unenrolled and enrolled accounts. Complete the outstanding matrix in the Section 7 log before approval. Imported Sandbox accounts require a fresh Stripe snapshot before paid editing.
 

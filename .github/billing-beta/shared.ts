@@ -1,9 +1,9 @@
 const env=(k:string)=>Deno.env.get(k)||'';
-export const base=env('SUPABASE_URL'),anon=env('SUPABASE_ANON_KEY'),service=env('SUPABASE_SERVICE_ROLE_KEY'),stripeKey=env('ROADSHOP_STRIPE_TEST_KEY'),app=env('ROADSHOP_APP_URL')||'https://jjaren-hub.github.io/roadshop-beta/';
-const betaProject=env('ROADSHOP_BILLING_BETA_PROJECT_REF');
-const isolatedBeta=/^[a-z0-9]{20}$/.test(betaProject)
-  && betaProject!=='rwwaejqsgtrmpzwcrfpb'
-  && base==='https://'+betaProject+'.supabase.co';
+export const base=env('SUPABASE_URL'),anon=env('SUPABASE_ANON_KEY'),service=env('SUPABASE_SERVICE_ROLE_KEY'),stripeKey=env('ROADSHOP_STRIPE_TEST_KEY'),app='https://jjaren-hub.github.io/roadshop-beta/';
+// Dedicated beta project after verified separation; no configurable override can target production.
+const betaProject='rwwaejqsgtrmpzwcrfpb';
+const isolatedBeta=base==='https://'+betaProject+'.supabase.co'
+  && (!env('ROADSHOP_BILLING_BETA_PROJECT_REF')||env('ROADSHOP_BILLING_BETA_PROJECT_REF')===betaProject);
 export const testEnabled=()=>isolatedBeta&&env('ROADSHOP_STRIPE_TEST_ENABLED')==='true'&&/^(sk|rk)_test_/.test(stripeKey);
 export const billingEligible=(account:any)=>account?.app_metadata?.earnkeep_subscription_beta===true;
 export function requireBillingBeta(account:any,mode:unknown){
