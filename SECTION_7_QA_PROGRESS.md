@@ -197,3 +197,5 @@
 - Preserved all previously passing tests and owner attestations. Beta main is `03f0b5afbc7e354493c12d010ddddd1e98211e18`. Prior beta deployment and focused native database evidence remain valid for their recorded scope.
 - Read-only beta preflight confirmed both billing Edge Functions are ACTIVE v5, test checkout and seven-day trials are enabled, global enforcement is off, there are zero open checkout reservations and 37 processed events. The existing mapped subscription is excluded from this test.
 - **Next:** Provision a new fictional beta user with no Stripe customer or subscription. Open two independent authenticated sessions on that account. Pair the browser results with fixture-only database counts and Stripe Sandbox objects, then verify a real previously unseen older webhook using dashboard evidence.
+
+- After the first dashboard handoff, the Create a new user dialog remained open. Beta SQL still returned four users and zero matches for the intended fixture, with zero open reservations and 37 processed events. Fixture creation is still pending and no checkout or webhook test was attempted.
