@@ -124,3 +124,9 @@
 - The production projection passed local static security, service-worker navigation/update, and all five Chromium browser workflows. The EIA parser also fetched the real source successfully in a scratch fixture and validated the current observation.
 - Production `main` still points to `210fa5fecc9f278a4ff9044037e887e9ca052c41`.
 - **Exact next action:** Create the production projection commit on an isolated preview ref, verify its Cloudflare preview bytes, redirects, and artifact exclusion, then perform the guarded fast-forward of production `main`.
+
+## Checkpoint 16 · Production preview deployed
+
+- RoadShop projection commit [`d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056`](https://github.com/jjaren-hub/RoadShop/commit/d2dfa0e6c4639c3c3bf5ece6a68493beb5dbb056) has one parent, `210fa5fecc9f278a4ff9044037e887e9ca052c41`. Its 75 tracked file hashes exactly match the locally tested projection. Of those, 71 are expected public static files, two are deployment control files and two are protected data-refresh sources.
+- The isolated production [preview](https://a963554e.roadshop.pages.dev/) finished deployment. [Cloudflare check 140845335675](https://github.com/jjaren-hub/RoadShop/runs/140845335675), deployment `a963554e-1603-4711-86a7-8b0cacd4f8ad`. Production `main` and `earnkeep.app` are still on the original release.
+- **Exact next action:** Verify the preview's 71 files, headers, redirects, 20 protected/removed paths and browser workflows. Capture a fictional pre-release production workspace for cross-version continuity checks. Fast-forward production only after these checks pass.
