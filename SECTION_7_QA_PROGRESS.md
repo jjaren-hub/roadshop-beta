@@ -22,3 +22,10 @@
 - Candidate static/accounting suites exited zero. Subscription browser suite passed 157 counted assertions (40 simulation, 117 actual app with fictional intercepted backend). Service-worker navigation suite passed. Full browser and hosted asset checks pending.
 - Shared billing security review found follow-up gates for owner review and isolated Sandbox verification. Deployment of a shared backend change is outside this beta-only scope. No backend settings were changed.
 - **Next:** Complete the full browser suite, check viewport and production isolation evidence, and commit the scoped beta repair after local checks.
+
+## Beta candidate committed
+
+- Commit [`8cfe098c2534fd8ac565cdd4df9f437e08f73db4`](https://github.com/jjaren-hub/roadshop-beta/commit/8cfe098c2534fd8ac565cdd4df9f437e08f73db4) advanced beta `main` from its pinned baseline. The GitHub tree matches the locally tested tree `a63fe217e976a49cb194b9900d41255126cdbfea`.
+- Final candidate local subscription browser coverage: 177 assertions (60 simulation across Android emulation, iPhone layout in Chromium, and desktop; 117 actual app with intercepted fictional services). All five occupation/browser workflows passed. The service-worker update and static/accounting groups passed. The commercial unit group passed 43 counted assertions.
+- Production root and simulation URL returned the same landing document. Production main tree has no preview assets, and sampled production browser scripts do not reference beta simulation or cohort controls. Production legal URLs are under separate follow-up because a direct file-style legal URL did not show expected contact in the first hosted check.
+- **Next:** Verify Pages bytes, GitHub Actions and final published browser evidence, then report legal and shared billing follow-up.
