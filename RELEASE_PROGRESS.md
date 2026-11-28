@@ -16,3 +16,11 @@
 - Deployment: Approval pending. Production untouched. Beta and production deployment identity and run IDs pending verification.
 - Rollback: Before promotion, confirm the previously verified Cloudflare production deployment and record its deployment identifier and production SHA. If a critical post-deployment gate fails, restore that deployment and revert the promotion on production `main` to keep source and deployment aligned. Verify the live asset set afterwards.
 - **Exact next action:** Fetch beta `main` and review `.github/workflows`, `.github/qa`, deployment inputs, and production access. Execute the existing baseline suites and record each result with the exact tested SHA.
+
+## Checkpoint 2 · Baseline static suites
+
+- Tested beta `ce11637976fd21bce9088de25f1d3ed39c9ae006`. All 11 suites in the static workflow step exited 0: release-static, finance, trucking, mechanic, insights, tax-planning, retention, reconciliation, quote-security, commercial and offline-vault. The suites reported 221 explicitly counted assertions and 67 precache assets checked. Other suites and appended regression cases do not print counts. Finance exited successfully with no summary.
+- Inventory: `.github/workflows/prelaunch-qa.yml` runs static, Cloudflare-style service-worker navigation, beta byte verification and the published browser suite. `.github/workflows/production-verify.yml` runs production byte/header checks and a browser suite. Both site roots returned HTTP 200. Initial local invocation of beta byte verification lacked the required URL environment variable and exited 1 before checking any assets.
+- Access: Public beta checkout works. The production git remote requires authentication unavailable to the terminal. GitHub connector reads both repositories and has written the beta recovery branch. CLI access to private production is still to be resolved or replaced through the connector.
+- Files modified: recovery log only. Log initialization commit `a7a56cbd58410cd6b53938c04a75e4550e165e1e`. No application defects confirmed at this checkpoint.
+- **Exact next action:** Run published beta bytes with `EARNKEEP_TEST_URL=https://jjaren-hub.github.io/roadshop-beta/`, run browser and service-worker tests, inspect trucking logic and open findings, and obtain Actions run links.
