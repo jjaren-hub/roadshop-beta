@@ -228,3 +228,37 @@
 
 - [`97089bf16e19a28a686036b1eb05e9b8c5e703e5`](https://github.com/jjaren-hub/roadshop-beta/commit/97089bf16e19a28a686036b1eb05e9b8c5e703e5) adds the read-only post-activation mode to the trial runner. [Workflow 46169309078](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46169309078), job 141053853586, passed against the published beta. An independent authenticated fixture browser showed the active Basic trial, a consumed eligibility flag, and no repeat checkout or trial control. The runner blocked outbound checkout requests in this mode. The actual trial submission was performed once by the owner through Stripe Sandbox; the previous automated form-submission attempt remains recorded as incomplete.
 - The requested Sandbox checks now have provider and database evidence: overlapping authenticated requests shared one reservation and one Checkout Session; Stripe reused its original idempotent response; one seven-day trial produced one subscription; and beta correctly processed new webhook events out of Stripe creation order. No further owner action is required for these checks. Prior QA pass records were preserved. No production changes, live payment activation, global enforcement changes, or Section 8 work occurred. Separately tracked Section 7 gates retain their existing status.
+
+
+## Physical Android acceptance · 2026-11-28
+
+Owner submitted the Android Section 7 checklist for beta: **31/38 passed, 7 pending, no failures reported.** Physical-device results are owner-attested, with earlier billing screenshots and backend evidence retained. Exact Android/Chrome version not supplied with this submission.
+
+| Category | Passed | Pending |
+| --- | ---: | ---: |
+| Authentication | 5/5 | 0 |
+| Installation and updates | 6/6 | 0 |
+| Mobile interface | 6/6 | 0 |
+| Subscription and billing | 9/9 | 0 |
+| Financial records and exports | 5/6 | 1 |
+| Offline and recovery | 0/6 | 6 |
+
+### Passed (owner-attested)
+
+- Authentication: Google sign-in, email registration, password reset, sign out/sign back in, no login loops.
+- Installation and updates: install from Chrome menu, home-screen launch, correct icon/branding, standalone app without browser address bar, update without losing records, close/reopen without errors.
+- Mobile interface: Billing layout, dashboard button fit, no unwanted horizontal scrolling, navigation, light/dark themes, keyboard does not obstruct required inputs.
+- Subscription and billing: correct status, Stripe portal, invoice history, cancellation, reactivation, active expense entry, expired subscription blocks new entries, existing records accessible after expiry, Stripe return inside installed app.
+- Financial records: create/save expense, edit fictional transaction, records survive close/reopen, PDF report download/open, complete backup download.
+
+### Pending physical Android checks
+
+- Download and open CSV export.
+- Enable offline vault.
+- Open installed app in airplane mode.
+- Unlock offline vault.
+- Save an offline expense using an eligible account, consistent with the applicable beta cohort policy (do not bypass entitlement restrictions).
+- Reconnect and synchronize without duplicate entries.
+- Confirm existing records remain intact after offline/reconnect.
+
+Retain existing automated offline/export evidence but do not substitute it for these physical-device tests. Owner's expiration behavior acceptance does not independently establish a new real v5 failed-renewal cutoff. Android remains partially accepted until seven pending items are resolved; iPhone, remaining Stripe configuration and final Section 7 review remain separate. No code, production, billing configuration or Section 8 changes.
