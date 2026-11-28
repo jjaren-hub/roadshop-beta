@@ -16,8 +16,9 @@ function ledgerRows(){
 }
 window.addEventListener('storage',event=>{if(event.key==='roadshop-quotes-v1')render()});
 window.addEventListener('pageshow',event=>{if(event.persisted)render()});
+function visibleLedgerRows(){return ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));}
 function render(){
-  const list=ledgerRows().filter(r=>r.date.startsWith($('month').value+'-')&&($('scope').value==='All trades'||r.trade===$('scope').value)).sort((a,b)=>b.date.localeCompare(a.date));
+  const list=visibleLedgerRows();
   const t=totals(list);for(const k of ['income','expense','net'])$(k).textContent=money(t[k]);
   const ledger=$('rows'),cats=$('breakdown');ledger.replaceChildren();cats.replaceChildren();const sums=new Map();
   for(const r of list){line(ledger,r.category,[r.date,r.trade,r.ref,r.note].filter(Boolean).join(' · '),(r.type==='Expense'?'−':r.type==='Income'?'+':'↔ ')+money(r.cents*(r.sign||1)),()=>edit(r));for(const l of Finance.lines(r)){const key=l.classification+' · '+l.category;sums.set(key,(sums.get(key)||0)+l.cents*(r.sign||1))}}
@@ -68,6 +69,7 @@ $('remove').onclick=()=>{if(savingEntry||!healthy||phone&&!phone.canWrite())retu
   }catch(e){alert(e.message)}finally{savingEntry=false;$('remove').disabled=false}});return;}
   const r=rows.find(x=>x.id===editing);if(!r||!Finance.canDeleteMistake(r,businessProfile,rows))return notifyUser('This entry cannot be removed here.');const pair=Finance.deletionIds(r,businessProfile,rows).length===2;ask(pair?'Delete correction pair?':'Delete this entry?',pair?'The original and mistaken correction will both be permanently removed. Totals will stay the same.':'This permanently removes the mistaken entry and updates totals. This cannot be undone.',async()=>{if(savingEntry)return;savingEntry=true;try{if(await save(Finance.deleteMistake(r,businessProfile,rows)))$('editor').close()}catch(e){alert(e.message)}finally{savingEntry=false}})};
 $('cancel').onclick=()=>$('confirm').close();$('accept').onclick=()=>{$('confirm').close();pending?.();pending=null};
+$('export-ledger').onclick=()=>{try{if(!healthy)throw Error('Ledger could not be read.');const columns=['id','date','trade','classification','category','amount','party','method','ref','note','vehicle','equipment','settlement','job','source','externalId','sign','billKey','reversalOf','splits'];const data=visibleLedgerRows().map(r=>columns.map(k=>k==='amount'?(r.cents/100).toFixed(2):k==='sign'?(r.sign===-1?'-1':'1'):Finance.csvCell(k==='classification'?Finance.kind(r):k==='splits'?JSON.stringify(r.splits||[]):r[k]??'')).join(','));const a=document.createElement('a'),url=URL.createObjectURL(new Blob([columns.join(',')+'\r\n'+data.join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='earnkeep-ledger-'+$('month').value+'.csv';a.href=url;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notifyUser('CSV exported.')}catch(e){notifyUser(e.message||'Could not export ledger.')}};
 $('backup').onclick=()=>{if(phone)return phone.backup();const a=document.createElement('a');a.download='earnkeep-backup.json';a.href=URL.createObjectURL(new Blob([JSON.stringify({format:'roadshop-v1',entries:rows})],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 $('restore').onclick=()=>{if(phone&&!phone.canWrite())return notifyUser('An active subscription is required to import entries.');if(phone)phone.restore();else $('file').click()};
 $('file').onchange=async()=>{const f=$('file').files[0];if(f&&f.size<=12*1024*1024+128)receiveBackup(await f.text());else notifyUser('File is too large.');$('file').value=''};
