@@ -280,3 +280,7 @@ Retain existing automated offline/export evidence but do not substitute it for t
 ## Beta publication approval · 2026-11-28
 
 - Owner explicitly requested publishing the five refresh/settings/ledger fixes. Selective release PR #9 merged into beta main at 466ff0198852dba218cbfcec23f6513a43e8735b; only app.js, ledger.html, quote-update.js and sw.js changed. Confirmed main contains build 20261128-section7-refresh1 and both controls. GitHub combined status returned no checks; hosted asset retrieval unavailable, so actual Pages deployment and Android update remain unverified. No unrelated QA, production, backend, Stripe or entitlement changes. Browser and physical-device QA gates remain open.
+
+## Android CSV export acceptance evidence · 2026-11-28
+
+- Owner supplied `earnkeep-ledger-2026-11.csv` immediately after beta publication. Inspected actual 281-byte CSV: 20 headers, one transaction, all rows have 20 fields, November 2026 reporting filename and matching transaction date. Direct ledger export download/readability check passes with supplied artifact evidence. No raw transaction identifiers or financial details copied into the repository. Android financial records/export category now 6/6; the separate update regression still requires refresh/restart and record-retention verification across releases. Do not infer offline or expired-account export acceptance from this file alone. Production untouched.
