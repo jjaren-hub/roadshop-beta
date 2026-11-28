@@ -26,6 +26,7 @@ async function canWrite(user){
 }
 function trialDays(info){return info?.subscription?.status==='none'&&info.trialEligible===true&&info.trialDays===7?7:0}
 const basic=plan=>plan?.code==='basic'&&plan.interval==='month'&&plan.amount_cents===499;
+const canReactivate=s=>s?.hasCustomer===true&&s.cancelAtPeriodEnd===true&&['active','trialing'].includes(s.status)&&paidAccess(s);
 const canCheckout=s=>!paidAccess(s)&&['none','canceled','expired','trial_expired','incomplete_expired'].includes(s?.status);
 // The deployed commercial function only returns checkoutEnabled after verifying a test key.
 const testEnabled=(user,info)=>enrolled(user)&&info?.checkoutEnabled===true&&(info.checkoutMode===undefined||info.checkoutMode==='test');
@@ -41,15 +42,17 @@ function stripeUrl(result,action){
  return url.href;
 }
 async function testSession(action,owner,planCode){
- if(!['checkout','portal'].includes(action))throw Error('Unknown billing action.');
+ if(!['checkout','portal','reactivate'].includes(action))throw Error('Unknown billing action.');
  const {data,error}=await cloudClient.auth.getUser();
  if(error||data?.user?.id!==owner)throw Error('Account changed. Sign in again.');
  const info=await load();
  if(!testEnabled(data.user,info))throw Error('Stripe test mode is not configured for this beta account.');
  if(action==='checkout'&&(!canCheckout(info.subscription)||!info.plans?.some(p=>p.code===planCode&&basic(p))))throw Error('Subscription options changed. Refresh and try again.');
- if(action==='portal'&&!info.subscription?.hasCustomer)throw Error('No test billing customer is available.');
- const result=await call(action,{mode:'test',...(action==='checkout'?{plan:planCode}:{})});
- return stripeUrl(result,action);
+ if(action==='reactivate'&&!canReactivate(info.subscription))throw Error('Cancellation status changed. Refresh billing and try again.');
+ if(action!=='checkout'&&!info.subscription?.hasCustomer)throw Error('No test billing customer is available.');
+ const requestAction=action==='reactivate'?'portal':action;
+ const result=await call(requestAction,{mode:'test',...(action==='checkout'?{plan:planCode}:{})});
+ return stripeUrl(result,requestAction);
 }
 function activity(){/* No feature or error telemetry from financial screens. */}
-return {call,load,get status(){return cached},access,activity,readOnly,isBeta,enrolled,paidAccess,canWrite,trialDays,basic,canCheckout,testEnabled,testSession};})();
+return {call,load,get status(){return cached},access,activity,readOnly,isBeta,enrolled,paidAccess,canWrite,trialDays,basic,canCheckout,canReactivate,testEnabled,testSession};})();
