@@ -91,3 +91,11 @@
 - QA-03: The independent published browser stopped at line 91 with a count of 0 immediately after the ledger heading appeared, before checking that business navigation had mounted. Require the navigation to appear and still assert all four trucking links in order. If navigation remains absent, treat that as an app defect.
 - Verified the rollback baseline against live production: 67 asset hashes match `210fa5fecc9f278a4ff9044037e887e9ca052c41`, and production headers and the query-preserving `account.html` redirect passed. Production promotion remains gated.
 - **Exact next action:** Resolve QA-03 in the browser test and rerun independent published Chromium. Read the first candidate's official browser result. Commit the verified fixture adjustment and wait for the updated official gate before promotion.
+
+## Checkpoint 12 · Official beta passed and production CSP conflict found
+
+- [Beta QA 46100767991](https://github.com/jjaren-hub/roadshop-beta/actions/runs/46100767991) completed successfully on `76318741087120dac93d9333763fa7292920fc9a`, including the published browser step. A local Chromium run also passed the navigation wait and added console/network checks.
+- The independent browser rerun passed the navigation check but its separate Playwright HTTP request went around the workspace proxy and failed at DNS. This affected independent backup fixture setup only. The GitHub runner's full published test passed.
+- TRK-04 found during production comparison: The beta trucking dashboard retrieves the diesel benchmark from `raw.githubusercontent.com`. The production Cloudflare CSP intentionally blocks that host. Use the same-origin published feed, trim the extra beta CSP entry, verify the request in the browser, and preserve the existing production headers and scheduled refresh behavior.
+- Production's current real Google sign-in initiation passed the canonical callback and provider redirect check. No real account was used.
+- **Exact next action:** Fix the same-origin benchmark, run local and published beta verification on a new candidate, and prepare the production asset manifest and data-refresh configuration after its gates pass.
