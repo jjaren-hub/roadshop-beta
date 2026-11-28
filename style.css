@@ -311,3 +311,10 @@ html #truck-view .fleet-row-action{font-size:12px;font-weight:600;flex:0 0 auto;
 html .perdiem-grid>.perdiem-home{background:#405466;border-color:#657b8f;color:#fff}
 
 html #truck-view label[hidden]{display:none!important}
+
+/* Dashboard subscription shortcut: remains accessible for read-only businesses. */
+html #content .dashboard-title-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;margin:16px 0}
+html #content .dashboard-title-row h1{flex:1 1 140px;min-width:0;margin:0;overflow-wrap:anywhere}
+html #content .dashboard-subscription-link{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:44px;max-width:100%;padding:8px 14px;border:1px solid var(--ek-nav-border);border-radius:7px;background:var(--ek-nav-bg);color:var(--ek-nav-fg);font-size:13px;font-weight:700;line-height:1.25;text-decoration:none;text-align:center;box-shadow:0 2px 4px #0002}
+html #content .dashboard-subscription-link:hover{background:var(--ek-nav-hover);border-color:var(--ek-focus)}
+html #content .dashboard-subscription-link:focus-visible{outline:3px solid var(--ek-focus);outline-offset:2px}
